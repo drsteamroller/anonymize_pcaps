@@ -107,18 +107,41 @@ for timestamp, buf in pcap:
 
 	# Replace IP addresses if not flagged
 	if (isinstance(eth.data, dpkt.ip.IP) and eth.type == 2048):
+		ip = eth.data
 		if(not opflags["--preserve-ips"]):
-			ip = eth.data
 			ip.src = replace_ip(ip.src)
-			ip.dst = replace_ip(ip.dst)
+			ip.dst = replace_ip(ip.dst) 
 
 		# Walk into Layer >4 payload
+
+		# TCP instance, preserve flags - possibly overwrite payload
+		if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
+			tcp = ip.data
+			if (opflags["--scrub-payload"]):
+				mask = ""
+				for g in range(len(tcp.data)*2):
+					i = random.randint(0,15)
+					mask += f"{i:x}"
+				tcp.data = bytes.fromhex(mask)
+
+		# UDP instance, possibly overwrite payload
+		elif (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
+			udp = ip.data
+			if (opflags["--scrub-payload"]):
+				mask = ""
+				for g in range(len(udp.data)*2):
+					i = random.randint(0,15)
+					mask += f"{i:x}"
+				udp.data = bytes.fromhex(mask)
+
+		''' Bombs entire Layer 4+ payload
 		if(opflags["--scrub-payload"]):
-			payload = ip.data
 			mask = ""
-			for g in range(len(payload)):
-				# TODO
-				# mask += f"{i:x}"
+			for g in range(len(eth.data.data)*2):
+				i = random.randint(0,15)
+				mask += f"{i:x}"
+			eth.data.data = bytes.fromhex(mask)
+		'''
 
 	# Replace IPv6 addresses if not flagged
 	elif (isinstance(eth.data, dpkt.ip6.IP6) and eth.type == 34525):
@@ -126,6 +149,25 @@ for timestamp, buf in pcap:
 			ip6 = eth.data
 			ip6.src = replace_ip6(ip6.src)
 			ip6.dst = replace_ip6(ip6.dst)
+
+		if (isinstance(ip6.data, dpkt.tcp.TCP) and ip6.p == 6):
+			tcp = ip6.data
+			if (opflags["--scrub-payload"]):
+				mask = ""
+				for g in range(len(tcp.data)*2):
+					i = random.randint(0,15)
+					mask += f"{i:x}"
+				tcp.data = bytes.fromhex(mask)
+				
+		# UDP instance, possibly overwrite payload
+		elif (isinstance(ip6.data, dpkt.udp.UDP) and ip6.p == 17):
+			udp = ip6.data
+			if (opflags["--scrub-payload"]):
+				mask = ""
+				for g in range(len(udp.data)*2):
+					i = random.randint(0,15)
+					mask += f"{i:x}"
+				udp.data = bytes.fromhex(mask)
 
 		# Walk into Layer >4 payload
 

@@ -13,10 +13,11 @@ mac_repl = dict()
 
 # Replaces IPs, but the same IP gets the same replacement
 # >> I.E. 8.8.8.8 always replaces to (randomized) 144.32.109.200 in the pcap
+# The point of these replacement commands is to make sure the same IP/MAC has the same replacement
 def replace_ip(ip):
 	if (ip not in ip_repl.keys()):
 		repl = ""
-		for i in range(16):
+		for g in range(16):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
 		ip_repl[ip] = repl
@@ -26,10 +27,11 @@ def replace_ip(ip):
 	else:
 		return bytearray.fromhex(ip_repl[ip])
 
+# Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
 	if (ip6 not in ip_repl.keys()):
 		repl = ""
-		for i in range(32):
+		for g in range(32):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
 		ip_repl[ip6] = repl
@@ -43,7 +45,7 @@ def replace_ip6(ip6):
 def replace_mac(mac):
 	if (mac not in mac_repl.keys()):
 		repl = ""
-		for i in range(12):
+		for g in range(12):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
 		mac_repl[mac] = repl
@@ -91,8 +93,6 @@ pcap = dpkt.pcap.Reader(f)
 f_mod = open("{}_mod.pcap".format(args[1].split('.')[0]), 'wb')
 pcap_mod = dpkt.pcap.Writer(f_mod)
 
-#print(pcap.readpkts())
-
 print("Entering pcap", end='')
 
 for timestamp, buf in pcap:
@@ -112,6 +112,14 @@ for timestamp, buf in pcap:
 			ip.src = replace_ip(ip.src)
 			ip.dst = replace_ip(ip.dst)
 
+		# Walk into Layer >4 payload
+		if(opflags["--scrub-payload"]):
+			payload = ip.data
+			mask = ""
+			for g in range(len(payload)):
+				# TODO
+				# mask += f"{i:x}"
+
 	# Replace IPv6 addresses if not flagged
 	elif (isinstance(eth.data, dpkt.ip6.IP6) and eth.type == 34525):
 		if(not opflags["--preserve-ips"]):
@@ -119,12 +127,14 @@ for timestamp, buf in pcap:
 			ip6.src = replace_ip6(ip6.src)
 			ip6.dst = replace_ip6(ip6.dst)
 
+		# Walk into Layer >4 payload
+
 	else:
 		print("Packet at timestamp: {} is non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
 
-
 	# Write the modified packet
 	pcap_mod.writepkt(eth, ts=timestamp)
+	print(".", end='')
 
 f.close()
 f_mod.close()

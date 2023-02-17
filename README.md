@@ -5,16 +5,19 @@
 ## Dependency
 
 dpkt - https://github.com/kbandla/dpkt
-`pip install dpkt`
+```
+pip install dpkt
+```
 
 ## Usage
-
-`python|python3 pcapsrb.py <pcap_file> <options>`
+```
+python|python3 pcapsrb.py <pcap_file> <options>
+```
 
 Options:
 ```
-	--help : Shows options
-	--preserve-macs : Skips MAC address scramble
-	--preserve-ips : Skips IP address scramble
-	--scrub-payload : Unintelligently* scrambles all data past TCP/UDP ports [*Not protocol-aware] 
+--help : Shows options
+--preserve-macs : Skips MAC address scramble
+--preserve-ips : Skips IP address scramble
+--scrub-payload : Unintelligently* scrambles all data past TCP/UDP ports [*Not protocol-aware] 
 ```

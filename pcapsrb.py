@@ -169,12 +169,10 @@ for timestamp, buf in pcap:
 					mask += f"{i:x}"
 				udp.data = bytes.fromhex(mask)
 
-		# Walk into Layer >4 payload
-
 	else:
 		print("Packet at timestamp: {} is non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
 
-	# Write the modified packet
+	# Write the modified (or unmodified, if not valid) packet
 	pcap_mod.writepkt(eth, ts=timestamp)
 	print(".", end='')
 

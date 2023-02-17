@@ -134,15 +134,6 @@ for timestamp, buf in pcap:
 					mask += f"{i:x}"
 				udp.data = bytes.fromhex(mask)
 
-		''' Bombs entire Layer 4+ payload
-		if(opflags["--scrub-payload"]):
-			mask = ""
-			for g in range(len(eth.data.data)*2):
-				i = random.randint(0,15)
-				mask += f"{i:x}"
-			eth.data.data = bytes.fromhex(mask)
-		'''
-
 	# Replace IPv6 addresses if not flagged
 	elif (isinstance(eth.data, dpkt.ip6.IP6) and eth.type == 34525):
 		if(not opflags["--preserve-ips"]):
@@ -150,6 +141,7 @@ for timestamp, buf in pcap:
 			ip6.src = replace_ip6(ip6.src)
 			ip6.dst = replace_ip6(ip6.dst)
 
+		# TCP instance, preserve flags - possibly overwrite payload
 		if (isinstance(ip6.data, dpkt.tcp.TCP) and ip6.p == 6):
 			tcp = ip6.data
 			if (opflags["--scrub-payload"]):

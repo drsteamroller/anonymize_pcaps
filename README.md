@@ -21,7 +21,7 @@ python|python3 pcapsrb.py <pcap_file> <options>
 Options:
 ```
 --help : Shows options
---preserve-macs : Skips MAC address scramble
---preserve-ips : Skips IP address scramble
---scrub-payload : Unintelligently* scrambles all data past TCP/UDP header info [*Not protocol-aware] 
+-pm, --preserve-macs : Skips MAC address scramble
+-pi, --preserve-ips : Skips IP address scramble
+-sp, --scrub-payload : Unintelligently* scrambles all data past TCP/UDP header info [*Not protocol-aware] 
 ```

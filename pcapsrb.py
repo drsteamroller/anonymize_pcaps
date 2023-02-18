@@ -15,6 +15,10 @@ mac_repl = dict()
 # >> I.E. 8.8.8.8 always replaces to (randomized) 144.32.109.200 in the pcap
 # The point of these replacement commands is to make sure the same IP/MAC has the same replacement
 def replace_ip(ip):
+	# Account for broadcast
+	if (ip.hex() == 'ffffffff'):
+		return ip
+
 	if (ip not in ip_repl.keys()):
 		repl = ""
 		for g in range(16):
@@ -29,6 +33,10 @@ def replace_ip(ip):
 
 # Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
+	# Account for broadcast	
+	if (ip6.hex() == 'ffffffffffffffffffffffffffffffff'):
+		return ip6
+
 	if (ip6 not in ip_repl.keys()):
 		repl = ""
 		for g in range(32):
@@ -43,6 +51,10 @@ def replace_ip6(ip6):
 
 # Same philosophy, but with mac addresses
 def replace_mac(mac):
+	# Account for broadcast
+	if (mac.hex() == 'ffffffffffff'):
+		return mac
+
 	if (mac not in mac_repl.keys()):
 		repl = ""
 		for g in range(12):
@@ -53,7 +65,7 @@ def replace_mac(mac):
 	else:
 		return bytearray.fromhex(mac_repl[mac])
 
-options = {"--preserve-ips":"Program scrambles IP(v4&6) addresses by default, use this option to preserve original IP addresses","--preserve-macs":"Disable MAC address scramble","--scrub-payload":"Sanitize payload in packet (in development)"}
+options = {"-pi, --preserve-ips":"Program scrambles IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
 
 # Check if file is included
 if (len(sys.argv) < 2):
@@ -72,14 +84,12 @@ else:
 		print("Unsupported file format: \"{}\"\n", args[1])
 		exit()
 
-opflags = {"--preserve-ips": False, "--preserve-macs": False, "--scrub-payload": False}
+opflags = []
 
 for arg in args[2:]:
-	if arg in opflags.keys():
-		opflags[arg] = True
-	else:
-		print("Unrecognized option: {}".format(arg))
-		exit()
+	opflags.append(arg)
+
+print(opflags)
 
 # Open the existing PCAP in a Reader
 try:
@@ -101,14 +111,14 @@ for timestamp, buf in pcap:
 	eth = dpkt.ethernet.Ethernet(buf)
 	
 	# Replace MAC addresses if not flagged
-	if(not opflags["--preserve-macs"]):
+	if("-pm" not in opflags and "--preserve-macs" not in opflags):
 		eth.src = replace_mac(eth.src)
 		eth.dst = replace_mac(eth.dst)
 
 	# Replace IP addresses if not flagged
 	if (isinstance(eth.data, dpkt.ip.IP) and eth.type == 2048):
 		ip = eth.data
-		if(not opflags["--preserve-ips"]):
+		if("-pi" not in opflags and "--preserve-ips" not in opflags):
 			ip.src = replace_ip(ip.src)
 			ip.dst = replace_ip(ip.dst) 
 
@@ -117,7 +127,7 @@ for timestamp, buf in pcap:
 		# TCP instance, preserve flags - possibly overwrite payload
 		if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
 			tcp = ip.data
-			if (opflags["--scrub-payload"]):
+			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(tcp.data)*2):
 					i = random.randint(0,15)
@@ -127,7 +137,7 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		elif (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
-			if (opflags["--scrub-payload"]):
+			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(udp.data)*2):
 					i = random.randint(0,15)
@@ -136,7 +146,7 @@ for timestamp, buf in pcap:
 
 	# Replace IPv6 addresses if not flagged
 	elif (isinstance(eth.data, dpkt.ip6.IP6) and eth.type == 34525):
-		if(not opflags["--preserve-ips"]):
+		if("-pi" not in opflags and "--preserve-ips" not in opflags):
 			ip6 = eth.data
 			ip6.src = replace_ip6(ip6.src)
 			ip6.dst = replace_ip6(ip6.dst)
@@ -144,7 +154,7 @@ for timestamp, buf in pcap:
 		# TCP instance, preserve flags - possibly overwrite payload
 		if (isinstance(ip6.data, dpkt.tcp.TCP) and ip6.p == 6):
 			tcp = ip6.data
-			if (opflags["--scrub-payload"]):
+			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(tcp.data)*2):
 					i = random.randint(0,15)
@@ -154,7 +164,7 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		elif (isinstance(ip6.data, dpkt.udp.UDP) and ip6.p == 17):
 			udp = ip6.data
-			if (opflags["--scrub-payload"]):
+			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(udp.data)*2):
 					i = random.randint(0,15)

@@ -65,6 +65,10 @@ def replace_mac(mac):
 	else:
 		return bytearray.fromhex(mac_repl[mac])
 
+# takes a TCP/UDP packet and determines/scrubs the data from
+def scrub_upper_prots(packet):
+	pass
+
 options = {"-pi, --preserve-ips":"Program scrambles IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
 
 # Check if file is included
@@ -74,7 +78,7 @@ if (len(sys.argv) < 2):
 
 args = sys.argv
 
-if (args[1] == "--help"):
+if ('-h' in args[1]):
 	for k,v in options.items():
 		print("\t{}: {}".format(k, v))
 	exit()
@@ -171,12 +175,32 @@ for timestamp, buf in pcap:
 					mask += f"{i:x}"
 				udp.data = bytes.fromhex(mask)
 
+	# Replace ARP ethernet & ip address info
+	elif (isinstance(eth.data, dpkt.arp.ARP) and eth.type == 2054):
+		arp = eth.data
+		if("-pm" not in opflags and "--preserve-macs" not in opflags):
+			arp.sha = replace_mac(arp.sha)
+			arp.tha = replace_mac(arp.tha)
+		if("-pi" not in opflags and "--preserve-ips" not in opflags):
+			if (len(arp.spa) == 16):
+				arp.spa = replace_ip(arp.spa)
+			else:
+				arp.spa = replace_ip6(arp.spa)
+			if (len(arp.tha) == 16):
+				arp.tpa = replace_ip(arp.tpa)
+			else:
+				arp.tpa = replace_ip6(arp.tpa)
+
 	else:
 		print("Packet at timestamp: {} is non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
 
 	# Write the modified (or unmodified, if not valid) packet
 	pcap_mod.writepkt(eth, ts=timestamp)
+
+	# each '.' means one packet read&written
 	print(".", end='')
+
+print()
 
 f.close()
 f_mod.close()

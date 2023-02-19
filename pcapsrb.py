@@ -120,11 +120,17 @@ for timestamp, buf in pcap:
 		eth.dst = replace_mac(eth.dst)
 
 	# Replace IP addresses if not flagged
-	if (isinstance(eth.data, dpkt.ip.IP) and eth.type == 2048):
+	if (isinstance(eth.data, dpkt.ip.IP) or isinstance(eth.data, dpkt.ip6.IP6)):
 		ip = eth.data
 		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			ip.src = replace_ip(ip.src)
-			ip.dst = replace_ip(ip.dst) 
+			if (len(ip.src) == 16):
+				ip.src = replace_ip(ip.src)
+			else:
+				ip.src = replace_ip6(ip.src)
+			if (len(ip.dst) == 16):
+				ip.dst = replace_ip(ip.dst)
+			else:
+				ip.dst = replace_ip6(ip.dst)
 
 		# Walk into Layer >4 payload
 
@@ -141,33 +147,6 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		elif (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
-			if ('-sp' in opflags or '--scrub-payload' in opflags):
-				mask = ""
-				for g in range(len(udp.data)*2):
-					i = random.randint(0,15)
-					mask += f"{i:x}"
-				udp.data = bytes.fromhex(mask)
-
-	# Replace IPv6 addresses if not flagged
-	elif (isinstance(eth.data, dpkt.ip6.IP6) and eth.type == 34525):
-		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			ip6 = eth.data
-			ip6.src = replace_ip6(ip6.src)
-			ip6.dst = replace_ip6(ip6.dst)
-
-		# TCP instance, preserve flags - possibly overwrite payload
-		if (isinstance(ip6.data, dpkt.tcp.TCP) and ip6.p == 6):
-			tcp = ip6.data
-			if ('-sp' in opflags or '--scrub-payload' in opflags):
-				mask = ""
-				for g in range(len(tcp.data)*2):
-					i = random.randint(0,15)
-					mask += f"{i:x}"
-				tcp.data = bytes.fromhex(mask)
-				
-		# UDP instance, possibly overwrite payload
-		elif (isinstance(ip6.data, dpkt.udp.UDP) and ip6.p == 17):
-			udp = ip6.data
 			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(udp.data)*2):

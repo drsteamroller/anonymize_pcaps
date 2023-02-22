@@ -16,7 +16,7 @@ mac_repl = dict()
 # The point of these replacement commands is to make sure the same IP/MAC has the same replacement
 def replace_ip(ip):
 	# Account for broadcast
-	if (ip.hex() == 'ffffffff'):
+	if (ip.hex() == 'f'*8):
 		return ip
 
 	if (ip not in ip_repl.keys()):
@@ -34,7 +34,7 @@ def replace_ip(ip):
 # Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
 	# Account for broadcast	
-	if (ip6.hex() == 'ffffffffffffffffffffffffffffffff'):
+	if (ip6.hex() == 'f'*32):
 		return ip6
 
 	if (ip6 not in ip_repl.keys()):
@@ -52,7 +52,7 @@ def replace_ip6(ip6):
 # Same philosophy, but with mac addresses
 def replace_mac(mac):
 	# Account for broadcast
-	if (mac.hex() == 'ffffffffffff'):
+	if (mac.hex() == 'f'*12):
 		return mac
 
 	if (mac not in mac_repl.keys()):
@@ -67,6 +67,21 @@ def replace_mac(mac):
 
 # takes a TCP/UDP packet and determines/scrubs the data from
 def scrub_upper_prots(packet):
+	# UDP only protocols
+	# 	TFTP
+	# 	NTP
+	# 	BOOTP/DHCP
+	# 	RIP
+
+	# TCP only protocols
+	# 	FTP
+	# 	HTTP
+	# 	SMTP
+	# 	Telnet
+	# 	IMAP/POP3
+
+	# TCP/UDP
+	# 	DNS
 	pass
 
 options = {"-pi, --preserve-ips":"Program scrambles IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
@@ -92,8 +107,6 @@ opflags = []
 
 for arg in args[2:]:
 	opflags.append(arg)
-
-print(opflags)
 
 # Open the existing PCAP in a Reader
 try:
@@ -123,16 +136,23 @@ for timestamp, buf in pcap:
 	if (isinstance(eth.data, dpkt.ip.IP) or isinstance(eth.data, dpkt.ip6.IP6)):
 		ip = eth.data
 		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			if (len(ip.src) == 16):
+			if (len(ip.src.hex()) == 8):
 				ip.src = replace_ip(ip.src)
 			else:
 				ip.src = replace_ip6(ip.src)
-			if (len(ip.dst) == 16):
+			if (len(ip.dst.hex()) == 8):
 				ip.dst = replace_ip(ip.dst)
 			else:
 				ip.dst = replace_ip6(ip.dst)
 
-		# Walk into Layer >4 payload
+		# Check for ICMP. Currently testing to see what needs to be masked
+		if (isinstance(ip.data, dpkt.icmp.ICMP)):
+			icmp = ip.data
+			# print('ICMP data: %s' % (repr(icmp.data)))
+
+		if (isinstance(ip.data, dpkt.icmp6.ICMP6)):
+			icmp6 = ip.data
+			# print('ICMP6 data: %s' % (repr(icmp6.data)))
 
 		# TCP instance, preserve flags - possibly overwrite payload
 		if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
@@ -145,7 +165,7 @@ for timestamp, buf in pcap:
 				tcp.data = bytes.fromhex(mask)
 
 		# UDP instance, possibly overwrite payload
-		elif (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
+		if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
 			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
@@ -161,11 +181,11 @@ for timestamp, buf in pcap:
 			arp.sha = replace_mac(arp.sha)
 			arp.tha = replace_mac(arp.tha)
 		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			if (len(arp.spa) == 16):
+			if (len(arp.spa.hex()) == 8):
 				arp.spa = replace_ip(arp.spa)
 			else:
 				arp.spa = replace_ip6(arp.spa)
-			if (len(arp.tha) == 16):
+			if (len(arp.tha.hex()) == 8):
 				arp.tpa = replace_ip(arp.tpa)
 			else:
 				arp.tpa = replace_ip6(arp.tpa)

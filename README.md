@@ -26,5 +26,6 @@ Options:
 -pm, --preserve-macs : Skips MAC address scramble
 -pi, --preserve-ips : Skips IP address scramble
 -sPIP, --scramble-priv-ips : Scramble RFC 1918 (private) IP addresses
+-O=<OUTFILE> : Output file name for log file, which shows the ip/mac address mappings
 -sp, --scrub-payload : Unintelligently* scrambles all data past TCP/UDP header info [*Not protocol-aware] 
 ```

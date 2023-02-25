@@ -8,8 +8,21 @@ import datetime
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
+opflags = []
 
 # Helper functions
+
+def isRFC1918(ip):
+	hexd = ip.hex()
+	if ('-sPIP' not in opflags and '--scramble-priv-ips' not in opflags):
+		if (hexd >= 'ac100000' and hexd <= 'ac20ffff'):
+			return True
+		elif (hexd >= 'c0a80000' and hexd <= 'c0a8ffff'):
+			return True
+		elif (hexd >= '0a000000' and hexd <= '0affffff'):
+			return True
+	else:
+		return False
 
 # Replaces IPs, but the same IP gets the same replacement
 # >> I.E. 8.8.8.8 always replaces to (randomized) 144.32.109.200 in the pcap
@@ -18,7 +31,8 @@ def replace_ip(ip):
 	# Account for broadcast
 	if (ip.hex() == 'f'*8):
 		return ip
-
+	if(isRFC1918(ip)):
+		return ip
 	if (ip not in ip_repl.keys()):
 		repl = ""
 		for g in range(16):
@@ -30,6 +44,8 @@ def replace_ip(ip):
 		return bytearray.fromhex(repl)
 	else:
 		return bytearray.fromhex(ip_repl[ip])
+
+# Implement isRFC1918(ip address) method
 
 # Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
@@ -84,7 +100,8 @@ def scrub_upper_prots(packet):
 	# 	DNS
 	pass
 
-options = {"-pi, --preserve-ips":"Program scrambles IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
+# Include private IP scramble
+options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
 
 # Check if file is included
 if (len(sys.argv) < 2):
@@ -102,8 +119,6 @@ else:
 	if('.pcap' not in args[1]):
 		print("Unsupported file format: \"{}\"\n", args[1])
 		exit()
-
-opflags = []
 
 for arg in args[2:]:
 	opflags.append(arg)
@@ -145,7 +160,7 @@ for timestamp, buf in pcap:
 			else:
 				ip.dst = replace_ip6(ip.dst)
 
-		# Check for ICMP. Currently testing to see what needs to be masked
+		# Check for ICMP/v6. Currently testing to see what needs to be masked
 		if (isinstance(ip.data, dpkt.icmp.ICMP)):
 			icmp = ip.data
 			# print('ICMP data: %s' % (repr(icmp.data)))
@@ -153,6 +168,18 @@ for timestamp, buf in pcap:
 		if (isinstance(ip.data, dpkt.icmp6.ICMP6)):
 			icmp6 = ip.data
 			# print('ICMP6 data: %s' % (repr(icmp6.data)))
+			chk = icmp6.data
+			icmp6cl = dpkt.icmp6.ICMP6
+			if (isinstance(chk, icmp6cl.Error) or isinstance(chk, icmp6cl.Unreach) or isinstance(chk, icmp6cl.TimeExceed) or isinstance(chk, icmp6cl.ParamProb)):
+				pass
+			else:
+				pass
+				# Need to figure out how to access router advertisements, might be wise just to scrub the whole payload
+				'''mask = ""
+				for g in range(len(icmp6.data)*2):
+					i = random.randint(0,15)
+					mask += f"{i:x}"
+				icmp6.data = bytes.fromhex(mask)'''
 
 		# TCP instance, preserve flags - possibly overwrite payload
 		if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
@@ -178,6 +205,7 @@ for timestamp, buf in pcap:
 	elif (isinstance(eth.data, dpkt.arp.ARP) and eth.type == 2054):
 		arp = eth.data
 		if("-pm" not in opflags and "--preserve-macs" not in opflags):
+			# Replace source/destination mac in arp data body
 			arp.sha = replace_mac(arp.sha)
 			arp.tha = replace_mac(arp.tha)
 		if("-pi" not in opflags and "--preserve-ips" not in opflags):

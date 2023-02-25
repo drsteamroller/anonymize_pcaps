@@ -4,11 +4,13 @@ import sys
 import dpkt
 import random
 import datetime
+import ipaddress
 
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
 opflags = []
+mapfilename = ""
 
 # Helper functions
 
@@ -35,17 +37,20 @@ def replace_ip(ip):
 		return ip
 	if (ip not in ip_repl.keys()):
 		repl = ""
-		for g in range(16):
+		for g in range(8):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
-		ip_repl[ip] = repl
+		
+		# Logging purposes
+		repl_ = int(repl, 16)
+		OGaddress = ipaddress.IPv4Address(ip)
+		SPaddress = ipaddress.IPv4Address(repl_)
+		ip_repl[str(OGaddress)] = str(SPaddress)
 
 		# Re-encode the output into bytes
 		return bytearray.fromhex(repl)
 	else:
 		return bytearray.fromhex(ip_repl[ip])
-
-# Implement isRFC1918(ip address) method
 
 # Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
@@ -58,7 +63,12 @@ def replace_ip6(ip6):
 		for g in range(32):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
-		ip_repl[ip6] = repl
+
+		# Logging purposes
+		repl_ = int(repl, 16)
+		OGaddress = ipaddress.IPv6Address(ip6)
+		SPaddress = ipaddress.IPv6Address(repl_)
+		ip_repl[str(OGaddress)] = str(SPaddress)
 
 		# Re-encode the output into bytes
 		return bytearray.fromhex(repl)
@@ -71,15 +81,15 @@ def replace_mac(mac):
 	if (mac.hex() == 'f'*12):
 		return mac
 
-	if (mac not in mac_repl.keys()):
+	if (mac.hex() not in mac_repl.keys()):
 		repl = ""
 		for g in range(12):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
-		mac_repl[mac] = repl
+		mac_repl[mac.hex()] = repl
 		return bytearray.fromhex(repl)
 	else:
-		return bytearray.fromhex(mac_repl[mac])
+		return bytearray.fromhex(mac_repl[mac.hex()])
 
 # takes a TCP/UDP packet and determines/scrubs the data from
 def scrub_upper_prots(packet):
@@ -100,8 +110,27 @@ def scrub_upper_prots(packet):
 	# 	DNS
 	pass
 
+# Mappings file, takes the replacement dictionaries "ip_repl" and "mac_repl" and writes them to a file for easy mapping reference
+def repl_dicts_to_logfile(filename):
+	with open(filename, 'w') as outfile:
+		outfile.write("+---------- MAPPED IP ADDRESSES ----------+\n")
+		for og, rep in ip_repl.items():
+			outfile.write(f"Original IP: {og}\nMapped IP: {rep}\n\n")
+		outfile.write("+---------- MAPPED MAC ADDRESSES ---------+\n")
+		for og, rep in mac_repl.items():
+			formatOG = ""
+			for x in range(1, len(og), 2):
+				formatOG += og[x-1] + og[x] + ':'
+			formatREP = ""
+			for y in range(1, len(rep), 2):
+				formatREP += rep[y-1] + rep[y] + ':'
+			formatOG = formatOG[:-1]
+			formatREP = formatREP[:-1]
+			outfile.write(f"Original MAC: {formatOG}\nMapped MAC: {formatREP}\n\n")
+	print(f"Outfile written to: {filename}")
+
 # Include private IP scramble
-options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
+options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses", "-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
 
 # Check if file is included
 if (len(sys.argv) < 2):
@@ -121,6 +150,12 @@ else:
 		exit()
 
 for arg in args[2:]:
+	if ("-O=" in arg):
+		try:
+			mapfilename = arg.split("=")
+		except:
+			print("-O option needs to be formatted like so:\n\t-O=<filename>")
+		continue
 	opflags.append(arg)
 
 # Open the existing PCAP in a Reader
@@ -228,6 +263,11 @@ for timestamp, buf in pcap:
 	print(".", end='')
 
 print()
+
+if (len(mapfilename) == 0):
+	mapfilename = args[1].split('.')[0] + "_mpdaddr.txt"
+
+repl_dicts_to_logfile(mapfilename)
 
 f.close()
 f_mod.close()

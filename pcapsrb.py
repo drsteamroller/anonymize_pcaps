@@ -66,6 +66,8 @@ def replace_ip6(ip6):
 
 		# Logging purposes
 		repl_ = int(repl, 16)
+		print(f"int: {repl_}")
+		print(f"Hex: {repl}")
 		OGaddress = ipaddress.IPv6Address(ip6)
 		SPaddress = ipaddress.IPv6Address(repl_)
 		ip_repl[str(OGaddress)] = str(SPaddress)
@@ -244,11 +246,11 @@ for timestamp, buf in pcap:
 			arp.sha = replace_mac(arp.sha)
 			arp.tha = replace_mac(arp.tha)
 		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			if (len(arp.spa.hex()) == 8):
+			if (len(arp.spa.hex()) <= 12):
 				arp.spa = replace_ip(arp.spa)
 			else:
 				arp.spa = replace_ip6(arp.spa)
-			if (len(arp.tha.hex()) == 8):
+			if (len(arp.tha.hex()) <= 12):
 				arp.tpa = replace_ip(arp.tpa)
 			else:
 				arp.tpa = replace_ip6(arp.tpa)

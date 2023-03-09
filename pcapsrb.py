@@ -1,4 +1,21 @@
-# pcap sanitization
+#!/usr/bin/env python3
+################################################################################
+#                 PCAP sanitization for Federal customers
+# Usage:
+#		pcapsrb.py [file].pcap [options]
+#		
+# Options:
+#		--help : Shows these options
+#		-pm, --preserve-macs : Skips MAC address scramble
+#		-pi, --preserve-ips : Skips IP address scramble
+#		-sPIP, --scramble-priv-ips : Scramble RFC 1918 (private) IP addresses
+#		-O=<OUTFILE> : Output file name for log file, which shows the ip/mac address mappings
+#		-sp, --scrub-payload : Unintelligently* scrambles all data past TCP/UDP header info [*Not protocol-aware] 
+#
+# Author: Andrew McConnell
+# Date:   03/09/2023
+################################################################################
+
 
 import sys
 import dpkt
@@ -40,13 +57,8 @@ def replace_ip(ip):
 		for g in range(8):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
-		
-		# Logging purposes
-		repl_ = int(repl, 16)
-		OGaddress = ipaddress.IPv4Address(ip)
-		SPaddress = ipaddress.IPv4Address(repl_)
-		ip_repl[str(OGaddress)] = str(SPaddress)
 
+		ip_repl[ip] = repl
 		# Re-encode the output into bytes
 		return bytearray.fromhex(repl)
 	else:
@@ -64,13 +76,7 @@ def replace_ip6(ip6):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
 
-		# Logging purposes
-		repl_ = int(repl, 16)
-		print(f"int: {repl_}")
-		print(f"Hex: {repl}")
-		OGaddress = ipaddress.IPv6Address(ip6)
-		SPaddress = ipaddress.IPv6Address(repl_)
-		ip_repl[str(OGaddress)] = str(SPaddress)
+		ip_repl[ip6] = str(repl)
 
 		# Re-encode the output into bytes
 		return bytearray.fromhex(repl)
@@ -117,7 +123,14 @@ def repl_dicts_to_logfile(filename):
 	with open(filename, 'w') as outfile:
 		outfile.write("+---------- MAPPED IP ADDRESSES ----------+\n")
 		for og, rep in ip_repl.items():
-			outfile.write(f"Original IP: {og}\nMapped IP: {rep}\n\n")
+			rep = int(rep, 16)
+			if (len(og.hex()) <= 12):
+				OGaddress = str(ipaddress.IPv4Address(og))
+				SPaddress = str(ipaddress.IPv4Address(rep))
+			else:
+				OGaddress = str(ipaddress.IPv6Address(og))
+				SPaddress = str(ipaddress.IPv6Address(rep))
+			outfile.write(f"Original IP: {OGaddress}\nMapped IP: {SPaddress}\n\n")
 		outfile.write("+---------- MAPPED MAC ADDRESSES ---------+\n")
 		for og, rep in mac_repl.items():
 			formatOG = ""

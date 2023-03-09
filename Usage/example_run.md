@@ -1,4 +1,4 @@
-# PCAP Scrub Example
+# PCAP Scrub Examples
 
 ## Files:
 
@@ -16,6 +16,8 @@ The following files used are from https://wiki.wireshark.org/SampleCaptures
 As the pcapsrb.py program gets update, updated modified versions of these pcaps will be uploaded. Additionally, this document will be updated to describe different implemented behaviors.
 
 ## local_traffic.pcap
+
+**Test 1: Default Behavior**
 This pcap file has a couple different types of traffic, including ICMP, Syslog, NTP, etc. It isn't fully representative of a corporate or federal environment, but this demonstration is mainly to show the private IP scrubbing capability. This was implemented as an optional flag when running the program for customers that don't want to expose any internal information that would aide a possible reconaissance into their environment. By default, any RFC 1918 Class A, B & C IP addresses are ignored when the script is run with no -sPIP (or --scrable-priv-ips) flag.
 
 The first run of `python pcapsrb.py local_traffic.pcap` outputs the follow files:
@@ -28,10 +30,29 @@ Notes on the following packets:
 
 Packet No. 3 & 4:
 - In the Ethernet frame, you can see the MAC addresses have been scrambled
-  - This is consistent between packets 3 & 4. Check the 
+  - This is consistent between packets 3 & 4. Check the src and dst MAC addresses
 
-TODO
+Packet No. 9:
+- Notice the broadcast destination doesn't change between original and scrubbed pcaps. This is the same for IP broadcast traffic.
 
+Packet No 16:
+- The payload is not touched if you don't specificy -sp or --scrub-payload.
+
+***
+- In local_traffic_mpdaddr_def.txt file, you can see the direct mappings between MAC & IP addresses between the original and mapped pcaps.
+
+***
+
+**Test 2: --scrub-priv-ips/-sPIP option enabled**
+
+Filenames: local_traffic_mod_spip.pcap and local_traffic_mpdaddr_spip.txt.
+
+Same original file, now we're scrambling private IP addresses. You can't tell subnet masks via pcaps, so it is an unintellegent scramble. At some point it'll choose an address within the same (assumed) /16 or /24 subnet, but for now it scrambles it the same way it would a routable address.
+
+Notes on the packets:
+
+You can now see that the 10.x addresses are now scrambled, and the mpdaddr file has grown accordingly.
+***
 ## simple_HTTP_rxtx.pcap
 
 TODO

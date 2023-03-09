@@ -1,0 +1,29 @@
++---------- MAPPED IP ADDRESSES ----------+
+Original IP: 10.20.20.20
+Mapped IP: 105.176.102.240
+
+Original IP: 10.20.20.10
+Mapped IP: 135.23.34.189
+
+Original IP: 185.125.190.57
+Mapped IP: 216.201.252.69
+
+Original IP: 185.199.108.154
+Mapped IP: 209.173.58.82
+
+Original IP: 10.20.20.30
+Mapped IP: 230.220.59.87
+
+Original IP: 10.25.25.1
+Mapped IP: 76.194.3.190
+
+Original IP: 34.107.221.82
+Mapped IP: 27.31.179.132
+
++---------- MAPPED MAC ADDRESSES ---------+
+Original MAC: 6e:4d:3d:8e:15:85
+Mapped MAC: 6f:9f:9a:be:92:41
+
+Original MAC: 00:09:0f:09:05:03
+Mapped MAC: 4e:a5:6f:79:fd:97
+

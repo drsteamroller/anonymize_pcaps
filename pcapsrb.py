@@ -86,7 +86,7 @@ def replace_ip6(ip6):
 # Same philosophy, but with mac addresses
 def replace_mac(mac):
 	# Account for broadcast
-	if (mac.hex() == 'f'*12):
+	if (mac.hex() == 'f'*12 or mac.hex() == '0'*12):
 		return mac
 
 	if (mac.hex() not in mac_repl.keys()):

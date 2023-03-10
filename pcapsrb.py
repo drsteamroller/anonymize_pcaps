@@ -33,35 +33,41 @@ mapfilename = ""
 
 def isRFC1918(ip):
 	hexd = ip.hex()
-	if ('-sPIP' not in opflags and '--scramble-priv-ips' not in opflags):
-		if (hexd >= 'ac100000' and hexd <= 'ac20ffff'):
-			return True
-		elif (hexd >= 'c0a80000' and hexd <= 'c0a8ffff'):
-			return True
-		elif (hexd >= '0a000000' and hexd <= '0affffff'):
-			return True
+	if (hexd >= 'ac100000' and hexd <= 'ac20ffff'):
+		return True
+	elif (hexd >= 'c0a80000' and hexd <= 'c0a8ffff'):
+		return True
+	elif (hexd >= '0a000000' and hexd <= '0affffff'):
+		return True
 	else:
 		return False
-
+	
 # Replaces IPs, but the same IP gets the same replacement
 # >> I.E. 8.8.8.8 always replaces to (randomized) 144.32.109.200 in the pcap
 # The point of these replacement commands is to make sure the same IP/MAC has the same replacement
 def replace_ip(ip):
 	# Account for broadcast
-	if (ip.hex() == 'f'*8):
+	if (ip.hex()[:-2] == 'f'*2):
 		return ip
-	if(isRFC1918(ip)):
-		return ip
+	if(isRFC1918(ip) and ('-sPIP' not in opflags and '--scramble-priv-ips' not in opflags)):
+		return ip			
+
 	if (ip not in ip_repl.keys()):
 		repl = ""
-		for g in range(8):
-			i = random.randint(0,15)
-
-			# PREVENTS 0.X.X.X ADDRESSES
-			while ((i + g) == 0):
+		if(isRFC1918(ip)):
+			repl = ip.hex()[0:4]
+			for h in range(4):
+				i = random.randint(0,15)
+				repl += f"{i:x}"
+		else:
+			for g in range(8):
 				i = random.randint(0,15)
 
-			repl += f'{i:x}'
+				# PREVENTS 0.X.X.X ADDRESSES
+				while ((i + g) == 0):
+					i = random.randint(0,15)
+
+				repl += f'{i:x}'
 
 		ip_repl[ip] = repl
 		# Re-encode the output into bytes

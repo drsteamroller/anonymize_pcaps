@@ -49,7 +49,7 @@ Packet No 16:
 
 Output Files: local_traffic_mod_spip.pcap and local_traffic_mpdaddr_spip.txt.
 
-Same original file, now we're scrambling private IP addresses. You can't tell subnet masks via pcaps, so it is an unintellegent scramble. At some point it'll choose an address within the same (assumed) /16 or /24 subnet, but for now it scrambles it the same way it would a routable address.
+Same original file, now we're scrambling private IP addresses. You can't tell subnet masks via pcaps, so it is an unintellegent scramble. ~~At some point it'll choose an address within the same (assumed) /16 or /24 subnet, but for now it scrambles it the same way it would a routable address.~~** Now assumes /16 and scrambles the lower 2 bytes.
 
 Notes on the packets:
 

@@ -56,6 +56,11 @@ def replace_ip(ip):
 		repl = ""
 		for g in range(8):
 			i = random.randint(0,15)
+
+			# PREVENTS 0.X.X.X ADDRESSES
+			while ((i + g) == 0):
+				i = random.randint(0,15)
+
 			repl += f'{i:x}'
 
 		ip_repl[ip] = repl
@@ -75,6 +80,10 @@ def replace_ip6(ip6):
 		for g in range(32):
 			i = random.randint(0,15)
 			repl += f'{i:x}'
+
+			# PREVENTS 0:: ADDRESSES
+			while ((i + g) == 0):
+				i = random.randint(0,15)
 
 		ip_repl[ip6] = str(repl)
 
@@ -269,7 +278,7 @@ for timestamp, buf in pcap:
 				arp.tpa = replace_ip6(arp.tpa)
 
 	else:
-		print("Packet at timestamp: {} is non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
+		print("Packet at timestamp: {} is of non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
 
 	# Write the modified (or unmodified, if not valid) packet
 	pcap_mod.writepkt(eth, ts=timestamp)

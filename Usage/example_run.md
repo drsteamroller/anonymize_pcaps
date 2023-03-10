@@ -104,3 +104,11 @@ Packet at timestamp: {timestamp} is of non IP Packet type, therefore unsupported
 data: {data}
 
 It gives you the timestamp, but the period count might make it easier to ID which packet is causing the problem.
+
+Some of the flags are not used in these examples. Some of them are self-explanatory.
+
+-pm, --preserve-macs: turns off MAC address scramble. The original MAC addresses will appear in the scrubbed file
+
+-pi, --preserve-ips: same as -pm, but with IP addresses
+
+-O=<OUTFILE>: Change the name of the \*mpdaddr.txt output log file

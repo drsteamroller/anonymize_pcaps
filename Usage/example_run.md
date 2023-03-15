@@ -18,7 +18,7 @@ As the pcapsrb.py program gets update, updated modified versions of these pcaps 
 ## local_traffic.pcap
 
 **Example 1: Default Behavior**
-This pcap file has a couple different types of traffic, including ICMP, Syslog, NTP, etc. It isn't fully representative of a corporate or federal environment, but this demonstration is mainly to show the private IP scrubbing capability. This was implemented as an optional flag when running the program for customers that don't want to expose any internal information that would aide a possible reconaissance into their environment. By default, any RFC 1918 Class A, B & C IP addresses are ignored when the script is run with no -sPIP (or --scrable-priv-ips) flag.
+This pcap file has a couple different types of traffic, including ICMP, Syslog, NTP, etc. It isn't fully representative of a corporate or federal environment, but this demonstration is mainly to show the private IP scrubbing capability. This was implemented as an optional flag when running the program for customers that don't want to expose any internal information that would aid an unintended reconaissance into their environment. By default, any RFC 1918 Class A, B & C IP addresses are ignored when the script is run with no -sPIP (or --scrable-priv-ips) flag.
 
 The first run of `python pcapsrb.py local_traffic.pcap` outputs the follow files:
 - local_traffic_mod_def.pcap <--------- Scrubbed pcap

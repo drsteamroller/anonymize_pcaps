@@ -46,8 +46,10 @@ def isRFC1918(ip):
 # >> I.E. 8.8.8.8 always replaces to (randomized) 144.32.109.200 in the pcap
 # The point of these replacement commands is to make sure the same IP/MAC has the same replacement
 def replace_ip(ip):
-	# Account for broadcast
-	if (ip.hex()[:-2] == 'f'*2):
+	# Account for broadcast/quad 0
+	if (type(ip) is str):
+		ip = bytes.fromhex(ip)
+	if ((ip.hex()[-2:] == 'f'*2) or (ip.hex() == '0'*8)):
 		return ip
 	if(isRFC1918(ip) and ('-sPIP' not in opflags and '--scramble-priv-ips' not in opflags)):
 		return ip			
@@ -77,8 +79,8 @@ def replace_ip(ip):
 
 # Literally the same function as IPv4, except generates a longer address
 def replace_ip6(ip6):
-	# Account for broadcast	
-	if (ip6.hex() == 'f'*32):
+	# Account for broadcast/zero'd addresses
+	if (ip6.hex() == 'f'*32 or ip.hex() == '0'*32):
 		return ip6
 
 	if (ip6 not in ip_repl.keys()):
@@ -100,7 +102,7 @@ def replace_ip6(ip6):
 
 # Same philosophy, but with mac addresses
 def replace_mac(mac):
-	# Account for broadcast
+	# Account for broadcast/zero'd addresses
 	if (mac.hex() == 'f'*12 or mac.hex() == '0'*12):
 		return mac
 
@@ -114,13 +116,68 @@ def replace_mac(mac):
 	else:
 		return bytearray.fromhex(mac_repl[mac.hex()])
 
-# takes a TCP/UDP packet and determines/scrubs the data from
-def scrub_upper_prots(packet):
+# takes TCP/UDP packet data and determines/scrubs the data
+def scrub_upper_prots(pkt):
 	# UDP only protocols
-	# 	TFTP
-	# 	NTP
-	# 	BOOTP/DHCP
-	# 	RIP
+	#	TFTP
+	if (isinstance(pkt, dpkt.tftp.TFTP)):
+		for g in range(len(pkt.data)*2):
+			i = random.randint(0,15)
+			mask += f"{i:x}"
+		pkt.data = bytes.fromhex(mask)
+	# 	DHCP
+	
+	pkt = dpkt.dhcp.DHCP(pkt)
+
+	# Since dpkt's DHCP module interprets ips as ints, we have to do this
+	c = hex(pkt.ciaddr)[2:]
+	c = '0'*(8-len(c)) + c
+	y = hex(pkt.yiaddr)[2:]
+	y = '0'*(8-len(y)) + y
+	s = hex(pkt.siaddr)[2:]
+	s = '0'*(8-len(s)) + s
+	g = hex(pkt.giaddr)[2:]
+	g = '0'*(8-len(g)) + g #											} F
+#																		} M
+	# This works 														} L
+	pkt.ciaddr = int.from_bytes(replace_ip(c), "big")
+	pkt.yiaddr = int.from_bytes(replace_ip(y), "big")
+	pkt.siaddr = int.from_bytes(replace_ip(s), "big")
+	pkt.giaddr = int.from_bytes(replace_ip(g), "big")
+	pkt.chaddr = replace_mac(pkt.chaddr)
+
+	# the DHCP options are encoded as a tuple (of tuples).
+	# In order to mutate the content, we need to convert the tuple of tuples to a list of lists
+	options = []
+	for i in range(len(pkt.opts)):
+		innerlist = []
+		# Structure as ((Option1, Data), (Option2, Data) ...) so we don't need to nest for loops
+		innerlist.append(pkt.opts[i][0])
+		innerlist.append(pkt.opts[i][1])
+		options.append(innerlist)
+
+	print(options)
+
+	for i in range(len(options)):
+
+		# option 50 works
+		if (options[i][0] == 50):
+			ip = replace_ip(options[i][1])
+			options[i][1] = ip
+
+		# option 54 works
+		elif (options[i][0] == 54):
+			ip = replace_ip(options[i][1])
+			options[i][1] = ip
+
+		# option 61 works
+		elif (options[i][0] == 61):
+			length = options[i][1][:1]
+			mac = replace_mac(options[i][1][1:])
+			options[i][1] = length + mac
+
+	# probably isn't necessary, but why not
+	pkt.opts = tuple(options)
 
 	# TCP only protocols
 	# 	FTP
@@ -131,7 +188,7 @@ def scrub_upper_prots(packet):
 
 	# TCP/UDP
 	# 	DNS
-	pass
+	return pkt
 
 # Mappings file, takes the replacement dictionaries "ip_repl" and "mac_repl" and writes them to a file for easy mapping reference
 def repl_dicts_to_logfile(filename):
@@ -200,6 +257,10 @@ pcap = dpkt.pcap.Reader(f)
 f_mod = open("{}_mod.pcap".format(args[1].split('.')[0]), 'wb')
 pcap_mod = dpkt.pcap.Writer(f_mod)
 
+#############################################################################################
+#								 Enter PCAP Scrubbing										#
+#############################################################################################
+
 print("Entering pcap", end='')
 
 for timestamp, buf in pcap:
@@ -259,6 +320,7 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
+			udp.data = scrub_upper_prots(udp.data)
 			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(udp.data)*2):

@@ -119,65 +119,8 @@ def replace_mac(mac):
 # takes TCP/UDP packet data and determines/scrubs the data
 def scrub_upper_prots(pkt):
 	# UDP only protocols
-	#	TFTP
-	if (isinstance(pkt, dpkt.tftp.TFTP)):
-		for g in range(len(pkt.data)*2):
-			i = random.randint(0,15)
-			mask += f"{i:x}"
-		pkt.data = bytes.fromhex(mask)
-	# 	DHCP
-	
-	pkt = dpkt.dhcp.DHCP(pkt)
-
-	# Since dpkt's DHCP module interprets ips as ints, we have to do this
-	c = hex(pkt.ciaddr)[2:]
-	c = '0'*(8-len(c)) + c
-	y = hex(pkt.yiaddr)[2:]
-	y = '0'*(8-len(y)) + y
-	s = hex(pkt.siaddr)[2:]
-	s = '0'*(8-len(s)) + s
-	g = hex(pkt.giaddr)[2:]
-	g = '0'*(8-len(g)) + g #											} F
-#																		} M
-	# This works 														} L
-	pkt.ciaddr = int.from_bytes(replace_ip(c), "big")
-	pkt.yiaddr = int.from_bytes(replace_ip(y), "big")
-	pkt.siaddr = int.from_bytes(replace_ip(s), "big")
-	pkt.giaddr = int.from_bytes(replace_ip(g), "big")
-	pkt.chaddr = replace_mac(pkt.chaddr)
-
-	# the DHCP options are encoded as a tuple (of tuples).
-	# In order to mutate the content, we need to convert the tuple of tuples to a list of lists
-	options = []
-	for i in range(len(pkt.opts)):
-		innerlist = []
-		# Structure as ((Option1, Data), (Option2, Data) ...) so we don't need to nest for loops
-		innerlist.append(pkt.opts[i][0])
-		innerlist.append(pkt.opts[i][1])
-		options.append(innerlist)
-
-	print(options)
-
-	for i in range(len(options)):
-
-		# option 50 works
-		if (options[i][0] == 50):
-			ip = replace_ip(options[i][1])
-			options[i][1] = ip
-
-		# option 54 works
-		elif (options[i][0] == 54):
-			ip = replace_ip(options[i][1])
-			options[i][1] = ip
-
-		# option 61 works
-		elif (options[i][0] == 61):
-			length = options[i][1][:1]
-			mac = replace_mac(options[i][1][1:])
-			options[i][1] = length + mac
-
-	# probably isn't necessary, but why not
-	pkt.opts = tuple(options)
+	#	TFTP <
+	# 	DHCP < dpkt does not like to recognize upper layer protocols. Currently finding solution
 
 	# TCP only protocols
 	# 	FTP
@@ -320,6 +263,7 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
+
 			udp.data = scrub_upper_prots(udp.data)
 			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""

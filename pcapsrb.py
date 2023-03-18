@@ -16,7 +16,6 @@
 # Date:   03/09/2023
 ################################################################################
 
-
 import sys
 import dpkt
 import random
@@ -26,10 +25,14 @@ import ipaddress
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
+protocol_ports = {'ftp': [21,22], 'telnet': 23, 'smtp': 25, 'dns': 53, 'dhcp': [67,68], \
+		  'tftp': [69], 'http': 80, 'snmp': [161,162], 'dhcpv6': [546,547]}
 opflags = []
 mapfilename = ""
 
-# Helper functions
+#############################################################################################
+#									 Helper Functions										#
+#############################################################################################
 
 def isRFC1918(ip):
 	hexd = ip.hex()
@@ -116,12 +119,80 @@ def replace_mac(mac):
 	else:
 		return bytearray.fromhex(mac_repl[mac.hex()])
 
-# takes TCP/UDP packet data and determines/scrubs the data
-def scrub_upper_prots(pkt):
+# takes TCP/UDP packet data and determines/scrubs the data based on standard ports
+def scrub_upper_prots(pkt, sport, dport):
 	# UDP only protocols
 	#	TFTP <
-	# 	DHCP < dpkt does not like to recognize upper layer protocols. Currently finding solution
+	# 	I need to track the ports after the first request, since the server picks an ephemeral port after the first request packet
+	if (sport in protocol_ports['tftp'] or dport in protocol_ports['tftp']):
+		pkt = dpkt.tftp.TFTP(pkt)
 
+		# Sort of keep track of new tftp sessions
+		if (dport == 69):
+			protocol_ports['tftp'].append(sport)
+		mask = ""
+		for g in range(len(pkt.data)*2):
+			i = random.randint(0,15)
+			mask += f"{i:x}"
+		pkt.data = bytes.fromhex(mask)
+
+	# 	DHCP <
+	elif (sport in protocol_ports['dhcp'] or dport in protocol_ports['dhcp']):
+		try:
+			pkt = dpkt.dhcp.DHCP(pkt)
+
+			# Since dpkt's DHCP module interprets ips as ints, we have to do this
+			c = hex(pkt.ciaddr)[2:]
+			c = '0'*(8-len(c)) + c
+			y = hex(pkt.yiaddr)[2:]
+			y = '0'*(8-len(y)) + y
+			s = hex(pkt.siaddr)[2:]
+			s = '0'*(8-len(s)) + s
+			g = hex(pkt.giaddr)[2:]
+			g = '0'*(8-len(g)) + g #											} F
+		#																		} M
+			# This works 														} L
+			pkt.ciaddr = int.from_bytes(replace_ip(c), "big")
+			pkt.yiaddr = int.from_bytes(replace_ip(y), "big")
+			pkt.siaddr = int.from_bytes(replace_ip(s), "big")
+			pkt.giaddr = int.from_bytes(replace_ip(g), "big")
+			pkt.chaddr = replace_mac(pkt.chaddr)
+
+			# the DHCP options are encoded as a tuple (of tuples).
+			# In order to mutate the content, we need to convert the tuple of tuples to a list of lists
+			options = []
+			for i in range(len(pkt.opts)):
+				innerlist = []
+				# Structure as ((Option1, Data), (Option2, Data) ...) so we don't need to nest for loops
+				innerlist.append(pkt.opts[i][0])
+				innerlist.append(pkt.opts[i][1])
+				options.append(innerlist)
+
+			for i in range(len(options)):
+
+				# option 50 works
+				if (options[i][0] == 50):
+					ip = replace_ip(options[i][1])
+					options[i][1] = ip
+
+				# option 54 works
+				elif (options[i][0] == 54):
+					ip = replace_ip(options[i][1])
+					options[i][1] = ip
+
+				# option 61 works
+				elif (options[i][0] == 61):
+					length = options[i][1][:1]
+					mac = replace_mac(options[i][1][1:])
+					options[i][1] = length + mac
+
+				# More options
+
+			# probably isn't necessary, but why not
+			pkt.opts = tuple(options)
+		except Exception as e:
+			return pkt
+	
 	# TCP only protocols
 	# 	FTP
 	# 	HTTP
@@ -159,6 +230,10 @@ def repl_dicts_to_logfile(filename):
 			outfile.write(f"Original MAC: {formatOG}\nMapped MAC: {formatREP}\n\n")
 	print(f"Outfile written to: {filename}")
 
+#############################################################################################
+#										CLI ARGS Setup										#
+#############################################################################################
+
 # Include private IP scramble
 options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses", "-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
 
@@ -166,6 +241,8 @@ options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses 
 if (len(sys.argv) < 2):
 	print("\nUsage:\n\tpcapsrb.py [file].pcap [options]\n\t--help -> for options\n")
 	exit()
+
+# CLI ARGS
 
 args = sys.argv
 
@@ -182,7 +259,7 @@ else:
 for arg in args[2:]:
 	if ("-O=" in arg):
 		try:
-			mapfilename = arg.split("=")
+			mapfilename = arg.split("=")[1]
 		except:
 			print("-O option needs to be formatted like so:\n\t-O=<filename>")
 		continue
@@ -197,7 +274,8 @@ except:
 pcap = dpkt.pcap.Reader(f)
 
 # Open a Writer pointing to an output file
-f_mod = open("{}_mod.pcap".format(args[1].split('.')[0]), 'wb')
+modfilename = "{}_mod.pcap".format(args[1].split('.')[0])
+f_mod = open(modfilename, 'wb')
 pcap_mod = dpkt.pcap.Writer(f_mod)
 
 #############################################################################################
@@ -263,8 +341,7 @@ for timestamp, buf in pcap:
 		# UDP instance, possibly overwrite payload
 		if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
 			udp = ip.data
-
-			udp.data = scrub_upper_prots(udp.data)
+			udp.data = scrub_upper_prots(udp.data, udp.sport, udp.dport)
 			if ('-sp' in opflags or '--scrub-payload' in opflags):
 				mask = ""
 				for g in range(len(udp.data)*2):

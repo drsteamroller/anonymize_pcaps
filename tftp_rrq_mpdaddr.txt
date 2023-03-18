@@ -1,0 +1,14 @@
++---------- MAPPED IP ADDRESSES ----------+
+Original IP: 192.168.0.253
+Mapped IP: 192.168.130.211
+
+Original IP: 192.168.0.10
+Mapped IP: 192.168.152.177
+
++---------- MAPPED MAC ADDRESSES ---------+
+Original MAC: 00:0b:be:18:9a:40
+Mapped MAC: 8a:86:ca:87:26:b6
+
+Original MAC: 00:50:8d:d7:8b:43
+Mapped MAC: 46:9e:44:0b:e9:45
+

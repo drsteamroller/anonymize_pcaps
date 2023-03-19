@@ -1,0 +1,9 @@
+ftp:[21,22]
+telnet:23
+smtp:25
+dns:53
+dhcp:[67,68]
+tftp:[69]
+http:80
+snmp:[161,162]
+dhcpv6:[546,547]

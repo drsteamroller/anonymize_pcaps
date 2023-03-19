@@ -228,14 +228,19 @@ def repl_dicts_to_logfile(filename):
 			formatOG = formatOG[:-1]
 			formatREP = formatREP[:-1]
 			outfile.write(f"Original MAC: {formatOG}\nMapped MAC: {formatREP}\n\n")
-	print(f"Outfile written to: {filename}")
+	print(f"Mapped address outfile written to: {filename}")
 
 #############################################################################################
 #										CLI ARGS Setup										#
 #############################################################################################
 
 # Include private IP scramble
-options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses","-pm, --preserve-macs":"Disable MAC address scramble","-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses", "-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings","-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)"}
+options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses by default, use this option to preserve original IP addresses",\
+		   "-pm, --preserve-macs":"Disable MAC address scramble",\
+			"-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses",\
+			"-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings",\
+			"-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)",\
+			"-ns":"Non-standard ports used. By default pcapsrb.py assumes standard port usage, use this option if the pcap to be scrubbed uses non-standard ports. For more info on usage, run \'python pcapsrb.py -ns -h\'"}
 
 # Check if file is included
 if (len(sys.argv) < 2):
@@ -243,7 +248,6 @@ if (len(sys.argv) < 2):
 	exit()
 
 # CLI ARGS
-
 args = sys.argv
 
 if ('-h' in args[1]):
@@ -251,11 +255,19 @@ if ('-h' in args[1]):
 		print("\t{}: {}".format(k, v))
 	exit()
 
+elif (len(args) > 2 and '-ns' in args[1] and '-h' in args[2]):
+	print("Refer to the example file in the GitHub called \'ports.txt\'. Use this example file or do an -ns=<file> to feed in a custom file.\
+       \nIf you just do a \'-ns\' with no equal, it will assume you are referring to ports.txt for non-standard ports.\n\
+        The protocols in ports.txt are the only protocols that are scrubbed. You can add more, however, they will not be scrubbed\n")
+	exit()
+
 else:
 	if('.pcap' not in args[1]):
-		print("Unsupported file format: \"{}\"\n", args[1])
+		print("Unsupported file format: \"{}\"\nRun python pcapsrb.py -h for usage help\n".format(args[1]))
 		exit()
 
+# Grab the args and append them into a flags list. Do some special operations for -O and -ns flags
+ports = ""
 for arg in args[2:]:
 	if ("-O=" in arg):
 		try:
@@ -263,17 +275,40 @@ for arg in args[2:]:
 		except:
 			print("-O option needs to be formatted like so:\n\t-O=<filename>")
 		continue
+	if ("-ns" in arg):
+		if ('=' in arg):
+			ports = arg.split("=")[1]
+		else:
+			ports = "ports.txt"
+		mappings = []
+		try:
+			with open(ports, 'r') as pfile:
+				mappings = pfile.readlines()
+		except:
+			print(f"\n** Specified non-standard ports file ({ports}) not present, using default ports **\n")
+		
+		for entry in mappings:
+			print(entry)
+			try:
+				prot_port = entry.split(':')
+				prot_port[1] = prot_port[1].strip('[]\n')
+				if (',' in prot_port[1]):
+					protocol_ports[prot_port[0].lower()] = prot_port[1].split(',')
+				else:
+					protocol_ports[prot_port[0].lower()] = [prot_port[1]]
+			except:
+				print("Non-standard ports file not formatted correctly\nCorrect format:\n\n<Protocol1>:<port>\n<Protocol2>:<port>\n...\nSee ports.txt for more examples")
 	opflags.append(arg)
 
-# Open the existing PCAP in a Reader
+# Open the existing PCAP in a dpkt Reader
 try:
 	f = open(args[1], 'rb')
 except:
-	print("File not found, try full path or place pcapsrb.py & pcap in same path")
+	print("File not found or something else went wrong, try full path or place pcapsrb.py & pcap in same path")
 	exit()
 pcap = dpkt.pcap.Reader(f)
 
-# Open a Writer pointing to an output file
+# Open a dpkt Writer pointing to an output file
 modfilename = "{}_mod.pcap".format(args[1].split('.')[0])
 f_mod = open(modfilename, 'wb')
 pcap_mod = dpkt.pcap.Writer(f_mod)

@@ -25,8 +25,8 @@ import ipaddress
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
-protocol_ports = {'ftp': [21,22], 'smtp': 25, 'dns': 53, 'dhcp': [67,68], \
-		  'tftp': [69], 'http': 80, 'snmp': [161,162], 'dhcpv6': [546,547]}
+protocol_ports = {'dhcp': [67,68], \
+		  'tftp': [69], 'http': 80, 'dhcpv6': [546,547]}
 opflags = []
 mapfilename = ""
 

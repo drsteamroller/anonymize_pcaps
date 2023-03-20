@@ -25,7 +25,7 @@ import ipaddress
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
-protocol_ports = {'ftp': [21,22], 'telnet': 23, 'smtp': 25, 'dns': 53, 'dhcp': [67,68], \
+protocol_ports = {'ftp': [21,22], 'smtp': 25, 'dns': 53, 'dhcp': [67,68], \
 		  'tftp': [69], 'http': 80, 'snmp': [161,162], 'dhcpv6': [546,547]}
 opflags = []
 mapfilename = ""
@@ -170,23 +170,52 @@ def scrub_upper_prots(pkt, sport, dport):
 
 			for i in range(len(options)):
 
-				# option 50 works
-				if (options[i][0] == 50):
+				# option 3 (Untested)
+				if (options[i][0] == 3):
+					ip = replace_ip(options[i][1])
+					options[i][1] = ip
+				
+				# option 6 (Untested)
+				elif (options[i][0] == 6):
 					ip = replace_ip(options[i][1])
 					options[i][1] = ip
 
-				# option 54 works
+				# option 7 (Untested)
+				elif (options[i][0] == 7):
+					ip = replace_ip(options[i][1])
+					options[i][1] = ip
+				
+				# option 12 (Untested)
+				elif (options[i][0] == 12):
+					swap = ""
+					for g in range(len(options[i][1]) * 2):
+						h = random.randint(0, 15)
+						swap += f"{h:x}"
+					options[i][1] = bytearray.fromhex(swap)
+				
+				# option 15 (Untested)
+				elif (options[i][0] == 15):
+					swap = ""
+					for g in range(len(options[i][1]) * 2):
+						h = random.randint(0, 15)
+						swap += f"{h:x}"
+					options[i][1] = bytearray.fromhex(swap)
+
+				# option 50
+				elif (options[i][0] == 50):
+					ip = replace_ip(options[i][1])
+					options[i][1] = ip
+
+				# option 54
 				elif (options[i][0] == 54):
 					ip = replace_ip(options[i][1])
 					options[i][1] = ip
 
-				# option 61 works
+				# option 61
 				elif (options[i][0] == 61):
 					length = options[i][1][:1]
 					mac = replace_mac(options[i][1][1:])
 					options[i][1] = length + mac
-
-				# More options
 
 			# probably isn't necessary, but why not
 			pkt.opts = tuple(options)
@@ -194,14 +223,32 @@ def scrub_upper_prots(pkt, sport, dport):
 			return pkt
 	
 	# TCP only protocols
-	# 	FTP
-	# 	HTTP
-	# 	SMTP
-	# 	Telnet
-	# 	IMAP/POP3
 
-	# TCP/UDP
-	# 	DNS
+	# HTTP request
+	elif (pkt.sport == protocol_ports['http']):
+		try:
+			pkt = dpkt.http.Request(pkt)
+		except:
+			print("Something went wrong parsing HTTP request")
+			return pkt
+		swap = ""
+		for g in range(len(pkt.body) * 2):
+			h = random.randint(0,15)
+			swap += f"{h:x}"
+		pkt.body = bytearray.fromhex(swap)
+	
+	elif (pkt.dport == protocol_ports['http']):
+		try:
+			pkt = dpkt.http.Response(pkt)
+		except:
+			print("Something went wrong parsing HTTP response")
+			return pkt
+		swap = ""
+		for g in range(len(pkt.body) * 2):
+			h = random.randint(0,15)
+			swap += f"{h:x}"
+		pkt.body = bytearray.fromhex(swap)
+	
 	return pkt
 
 # Mappings file, takes the replacement dictionaries "ip_repl" and "mac_repl" and writes them to a file for easy mapping reference

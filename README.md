@@ -28,7 +28,10 @@ Options:
 -pi, --preserve-ips : Skips IP address scramble
 -sPIP, --scramble-priv-ips : Scramble RFC 1918 (private) IP addresses
 -O=<OUTFILE> : Output file name for log file, which shows the ip/mac address mappings
--sp, --scrub-payload : Unintelligently* scrambles all data past TCP/UDP header info [*Not protocol-aware]
+-sp, --scrub-payload : Currently only aware of TFTP/DHCP, HTTP under construction
 -ns : Non-standard ports used. By default pcapsrb.py assumes standard port usage, use this option if the pcap to be scrubbed uses non-standard ports.
-        To use -ns, you can supply an input file(-ns=<file>), or if you leave it blank, it will look for a file named "ports.txt" which is included in the GitHub
+        - To use -ns, you can supply an input file(-ns=<file>), or if you leave it blank, it will look for a file named "ports.txt" which is included in the GitHub
+        - Additionally, you can utilize this option if you want to scrub certain protocols, but leave other protocols untouched. Set the ports (see ports.txt) you want to not scrub to -1 
 ```
+
+***New/updated examples to be added soon***

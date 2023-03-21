@@ -26,7 +26,7 @@ import ipaddress
 ip_repl = dict()
 mac_repl = dict()
 protocol_ports = {'dhcp': [67,68], \
-		  'tftp': [69], 'http': 80, 'dhcpv6': [546,547]}
+		  'tftp': [69], 'http': [80], 'dhcpv6': [546,547]}
 opflags = []
 mapfilename = ""
 
@@ -221,32 +221,38 @@ def scrub_upper_prots(pkt, sport, dport):
 			pkt.opts = tuple(options)
 		except Exception as e:
 			return pkt
-	
-	# TCP only protocols
 
-	# HTTP request
-	elif (pkt.sport == protocol_ports['http']):
+	# HTTP request (does not work)
+	elif (dport in protocol_ports['http']):
+		ogpkt = pkt
+		mes = None
 		try:
-			pkt = dpkt.http.Request(pkt)
-		except:
-			print("Something went wrong parsing HTTP request")
-			return pkt
+			mes = dpkt.http.Message(pkt)
+			pkt = dpkt.http.Request(mes)
+		except Exception as e:
+			return ogpkt
 		swap = ""
 		for g in range(len(pkt.body) * 2):
 			h = random.randint(0,15)
 			swap += f"{h:x}"
+		print(pkt.Message)
 		pkt.body = bytearray.fromhex(swap)
 	
-	elif (pkt.dport == protocol_ports['http']):
+	# http response (does not work)
+	elif (sport in protocol_ports['http']):
+		ogpkt = pkt
+		mes = None
 		try:
-			pkt = dpkt.http.Response(pkt)
+			mes = dpkt.http.Message(pkt)
+			pkt = dpkt.http.Response(mes)
 		except:
-			print("Something went wrong parsing HTTP response")
-			return pkt
+			return ogpkt
+		print(pkt.uri)
 		swap = ""
 		for g in range(len(pkt.body) * 2):
 			h = random.randint(0,15)
 			swap += f"{h:x}"
+		print(pkt.body)
 		pkt.body = bytearray.fromhex(swap)
 	
 	return pkt
@@ -286,7 +292,7 @@ options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses 
 		   "-pm, --preserve-macs":"Disable MAC address scramble",\
 			"-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses",\
 			"-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings",\
-			"-sp, --scrub-payload":"Sanitize payload in packet (Unintelligently)",\
+			"-sp, --scrub-payload":"Sanitize payload in packet (DHCP/TFTP supported, HTTP under construction)",\
 			"-ns":"Non-standard ports used. By default pcapsrb.py assumes standard port usage, use this option if the pcap to be scrubbed uses non-standard ports. For more info on usage, run \'python pcapsrb.py -ns -h\'"}
 
 # Check if file is included
@@ -305,7 +311,8 @@ if ('-h' in args[1]):
 elif (len(args) > 2 and '-ns' in args[1] and '-h' in args[2]):
 	print("Refer to the example file in the GitHub called \'ports.txt\'. Use this example file or do an -ns=<file> to feed in a custom file.\
        \nIf you just do a \'-ns\' with no equal, it will assume you are referring to ports.txt for non-standard ports.\n\
-        The protocols in ports.txt are the only protocols that are scrubbed. You can add more, however, they will not be scrubbed\n")
+        The protocols in ports.txt are the only protocols that are scrubbed. You can add more, however, they will not be scrubbed\n\
+        If you want to leave certain protocols un-scrubbed, you can set their port to -1, and it will be ignored\n")
 	exit()
 
 else:
@@ -367,102 +374,98 @@ pcap_mod = dpkt.pcap.Writer(f_mod)
 print("Entering pcap", end='')
 
 for timestamp, buf in pcap:
-
-	# unpack into (mac src/dst, ethertype)
-	eth = dpkt.ethernet.Ethernet(buf)
-	
-	# Replace MAC addresses if not flagged
-	if("-pm" not in opflags and "--preserve-macs" not in opflags):
-		eth.src = replace_mac(eth.src)
-		eth.dst = replace_mac(eth.dst)
-
-	# Replace IP addresses if not flagged
-	if (isinstance(eth.data, dpkt.ip.IP) or isinstance(eth.data, dpkt.ip6.IP6)):
-		ip = eth.data
-		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			if (len(ip.src.hex()) == 8):
-				ip.src = replace_ip(ip.src)
-			else:
-				ip.src = replace_ip6(ip.src)
-			if (len(ip.dst.hex()) == 8):
-				ip.dst = replace_ip(ip.dst)
-			else:
-				ip.dst = replace_ip6(ip.dst)
-
-		# Check for ICMP/v6. Currently testing to see what needs to be masked
-		if (isinstance(ip.data, dpkt.icmp.ICMP)):
-			icmp = ip.data
-			# print('ICMP data: %s' % (repr(icmp.data)))
-
-		if (isinstance(ip.data, dpkt.icmp6.ICMP6)):
-			icmp6 = ip.data
-			# print('ICMP6 data: %s' % (repr(icmp6.data)))
-			chk = icmp6.data
-			icmp6cl = dpkt.icmp6.ICMP6
-			if (isinstance(chk, icmp6cl.Error) or isinstance(chk, icmp6cl.Unreach) or isinstance(chk, icmp6cl.TimeExceed) or isinstance(chk, icmp6cl.ParamProb)):
-				pass
-			else:
-				pass
-				# Need to figure out how to access router advertisements, might be wise just to scrub the whole payload
-				'''mask = ""
-				for g in range(len(icmp6.data)*2):
-					i = random.randint(0,15)
-					mask += f"{i:x}"
-				icmp6.data = bytes.fromhex(mask)'''
-
-		# TCP instance, preserve flags - possibly overwrite payload
-		if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
-			tcp = ip.data
-			if ('-sp' in opflags or '--scrub-payload' in opflags):
-				mask = ""
-				for g in range(len(tcp.data)*2):
-					i = random.randint(0,15)
-					mask += f"{i:x}"
-				tcp.data = bytes.fromhex(mask)
-
-		# UDP instance, possibly overwrite payload
-		if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
-			udp = ip.data
-			udp.data = scrub_upper_prots(udp.data, udp.sport, udp.dport)
-			if ('-sp' in opflags or '--scrub-payload' in opflags):
-				mask = ""
-				for g in range(len(udp.data)*2):
-					i = random.randint(0,15)
-					mask += f"{i:x}"
-				udp.data = bytes.fromhex(mask)
-
-	# Replace ARP ethernet & ip address info
-	elif (isinstance(eth.data, dpkt.arp.ARP) and eth.type == 2054):
-		arp = eth.data
+	try:
+		# unpack into (mac src/dst, ethertype)
+		eth = dpkt.ethernet.Ethernet(buf)
+		
+		# Replace MAC addresses if not flagged
 		if("-pm" not in opflags and "--preserve-macs" not in opflags):
-			# Replace source/destination mac in arp data body
-			arp.sha = replace_mac(arp.sha)
-			arp.tha = replace_mac(arp.tha)
-		if("-pi" not in opflags and "--preserve-ips" not in opflags):
-			if (len(arp.spa.hex()) <= 12):
-				arp.spa = replace_ip(arp.spa)
-			else:
-				arp.spa = replace_ip6(arp.spa)
-			if (len(arp.tha.hex()) <= 12):
-				arp.tpa = replace_ip(arp.tpa)
-			else:
-				arp.tpa = replace_ip6(arp.tpa)
+			eth.src = replace_mac(eth.src)
+			eth.dst = replace_mac(eth.dst)
 
-	else:
-		print("Packet at timestamp: {} is of non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(ts), eth.data.unpack()))
+		# Replace IP addresses if not flagged
+		if (isinstance(eth.data, dpkt.ip.IP) or isinstance(eth.data, dpkt.ip6.IP6)):
+			ip = eth.data
+			if("-pi" not in opflags and "--preserve-ips" not in opflags):
+				if (len(ip.src.hex()) == 8):
+					ip.src = replace_ip(ip.src)
+				else:
+					ip.src = replace_ip6(ip.src)
+				if (len(ip.dst.hex()) == 8):
+					ip.dst = replace_ip(ip.dst)
+				else:
+					ip.dst = replace_ip6(ip.dst)
 
-	# Write the modified (or unmodified, if not valid) packet
-	pcap_mod.writepkt(eth, ts=timestamp)
+			# Check for ICMP/v6. Currently testing to see what needs to be masked
+			if (isinstance(ip.data, dpkt.icmp.ICMP)):
+				icmp = ip.data
+				# print('ICMP data: %s' % (repr(icmp.data)))
 
-	# each '.' means one packet read&written
-	print(".", end='')
+			if (isinstance(ip.data, dpkt.icmp6.ICMP6)):
+				icmp6 = ip.data
+				# print('ICMP6 data: %s' % (repr(icmp6.data)))
+				chk = icmp6.data
+				icmp6cl = dpkt.icmp6.ICMP6
+				if (isinstance(chk, icmp6cl.Error) or isinstance(chk, icmp6cl.Unreach) or isinstance(chk, icmp6cl.TimeExceed) or isinstance(chk, icmp6cl.ParamProb)):
+					pass
+				else:
+					pass
+					# Need to figure out how to access router advertisements, might be wise just to scrub the whole payload
+					'''mask = ""
+					for g in range(len(icmp6.data)*2):
+						i = random.randint(0,15)
+						mask += f"{i:x}"
+					icmp6.data = bytes.fromhex(mask)'''
+
+			# TCP instance, preserve flags - possibly overwrite payload
+			if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
+				if ('-sp' in opflags or '--scrub-payload' in opflags):
+					tcp = ip.data
+					tcp.data = scrub_upper_prots(tcp.data, tcp.sport, tcp.dport)
+
+			# UDP instance, possibly overwrite payload
+			if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
+				if ('-sp' in opflags or '--scrub-payload' in opflags):
+					udp = ip.data
+					udp.data = scrub_upper_prots(udp.data, udp.sport, udp.dport)
+
+		# Replace ARP ethernet & ip address info
+		elif (isinstance(eth.data, dpkt.arp.ARP) and eth.type == 2054):
+			arp = eth.data
+			if("-pm" not in opflags and "--preserve-macs" not in opflags):
+				# Replace source/destination mac in arp data body
+				arp.sha = replace_mac(arp.sha)
+				arp.tha = replace_mac(arp.tha)
+			if("-pi" not in opflags and "--preserve-ips" not in opflags):
+				if (len(arp.spa.hex()) <= 12):
+					arp.spa = replace_ip(arp.spa)
+				else:
+					arp.spa = replace_ip6(arp.spa)
+				if (len(arp.tha.hex()) <= 12):
+					arp.tpa = replace_ip(arp.tpa)
+				else:
+					arp.tpa = replace_ip6(arp.tpa)
+
+		else:
+			print("Packet at timestamp: {} is of non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(timestamp), eth.data.unpack()))
+
+		# Write the modified (or unmodified, if not valid) packet
+		pcap_mod.writepkt(eth, ts=timestamp)
+
+		# each '.' means one packet read&written
+		print(".", end='')
+
+	except Exception as e:
+		print(f"Exception thrown at timestamp {timestamp}: {e}")
+		pcap_mod.writepkt(eth, ts=timestamp)
 
 print()
 
-if (len(mapfilename) == 0):
-	mapfilename = args[1].split('.')[0] + "_mpdaddr.txt"
+try:
+	if (len(mapfilename) == 0):
+		mapfilename = args[1].split('.')[0] + "_mpdaddr.txt"
 
-repl_dicts_to_logfile(mapfilename)
-
-f.close()
-f_mod.close()
+	repl_dicts_to_logfile(mapfilename)
+finally:
+	f.close()
+	f_mod.close()

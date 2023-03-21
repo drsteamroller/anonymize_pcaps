@@ -1,4 +1,4 @@
 dhcp:[67,68]
 tftp:[69]
-http:80
+http:[80]
 dhcpv6:[546,547]

@@ -297,8 +297,8 @@ options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses 
 
 # Check if file is included
 if (len(sys.argv) < 2):
-	print("\nUsage:\n\tpcapsrb.py [file].pcap [options]\n\t--help -> for options\n")
-	exit()
+	print("\nUsage:\n\tpy pcapsrb.py [file].pcap [options]\n\t--help -> for options\n")
+	sys.exit()
 
 # CLI ARGS
 args = sys.argv
@@ -306,19 +306,19 @@ args = sys.argv
 if ('-h' in args[1]):
 	for k,v in options.items():
 		print("\t{}: {}".format(k, v))
-	exit()
+	sys.exit()
 
 elif (len(args) > 2 and '-ns' in args[1] and '-h' in args[2]):
 	print("Refer to the example file in the GitHub called \'ports.txt\'. Use this example file or do an -ns=<file> to feed in a custom file.\
        \nIf you just do a \'-ns\' with no equal, it will assume you are referring to ports.txt for non-standard ports.\n\
         The protocols in ports.txt are the only protocols that are scrubbed. You can add more, however, they will not be scrubbed\n\
         If you want to leave certain protocols un-scrubbed, you can set their port to -1, and it will be ignored\n")
-	exit()
+	sys.exit()
 
 else:
 	if('.pcap' not in args[1]):
 		print("Unsupported file format: \"{}\"\nRun python pcapsrb.py -h for usage help\n".format(args[1]))
-		exit()
+		sys.exit()
 
 # Grab the args and append them into a flags list. Do some special operations for -O and -ns flags
 ports = ""
@@ -359,7 +359,7 @@ try:
 	f = open(args[1], 'rb')
 except:
 	print("File not found or something else went wrong, try full path or place pcapsrb.py & pcap in same path")
-	exit()
+	sys.exit()
 pcap = dpkt.pcap.Reader(f)
 
 # Open a dpkt Writer pointing to an output file

@@ -21,12 +21,14 @@ import dpkt
 import random
 import datetime
 import ipaddress
+import binascii
 
 # Global Variables
 ip_repl = dict()
 mac_repl = dict()
+str_repl = dict()
 protocol_ports = {'dhcp': [67,68], \
-		  'tftp': [69], 'http': [80], 'dhcpv6': [546,547]}
+		  'tftp': [69], 'http': [80], 'dhcpv6': [546,547], 'radius': [1812,1813]}
 opflags = []
 mapfilename = ""
 
@@ -118,6 +120,24 @@ def replace_mac(mac):
 		return bytearray.fromhex(repl)
 	else:
 		return bytearray.fromhex(mac_repl[mac.hex()])
+
+def replace_str(s):
+	if s in str_repl.keys():
+		return str_repl[s]
+	
+	repl = ""
+	for l in s:
+		c = 0
+		
+		if (random.random() > .5):
+			c = chr(random.randint(65,90))
+		else:
+			c = chr(random.randint(97, 122))
+
+		repl += c
+	str_repl[s] = repl
+
+	return repl
 
 # takes TCP/UDP packet data and determines/scrubs the data based on standard ports
 def scrub_upper_prots(pkt, sport, dport):
@@ -255,6 +275,85 @@ def scrub_upper_prots(pkt, sport, dport):
 		print(pkt.body)
 		pkt.body = bytearray.fromhex(swap)
 	
+	elif (sport in protocol_ports['radius'] or dport in protocol_ports['radius']):
+		pkt = dpkt.radius.RADIUS(pkt)
+
+		# Convert the tuples into a list so we can manipulate values
+		attrlist = []
+		for t, d in pkt.attrs:
+			attrlist.append([t,d])
+
+		for off, [t, d] in enumerate(attrlist):
+
+			if t == dpkt.radius.RADIUS_USER_NAME:
+				d = replace_str(d)
+			
+			elif t == dpkt.radius.RADIUS_NAS_IP_ADDR:
+				d = replace_ip(d)
+			
+			elif t == dpkt.radius.RADIUS_FRAMED_IP_ADDR:
+				d = replace_ip(d)
+			
+			elif t == dpkt.radius.RADIUS_REPLY_MESSAGE:
+				d = replace_str(d)
+			
+			elif t == dpkt.radius.RADIUS_CALLED_STATION_ID or t == dpkt.radius.RADIUS_CALLING_STATION_ID:
+				macstr = ""
+				nodash = ""
+				for i in d:
+					macstr += chr(i)
+				
+				# Get rid of dashes
+				for i in range(len(macstr)):
+					if ((i-2) % 3 != 0):
+						nodash += macstr[i]
+				
+				b = replace_mac(bytes(nodash, 'utf-8'))
+
+				macstr = ""
+				nodash = ""
+				for i in b:
+					macstr += hex(i)[2:]
+
+				stupid = -2
+				# Get rid of dashes
+				for h in range(len(macstr)):
+					if ((h+stupid) % 3 == 0):
+						stupid +=1
+						nodash += "-"
+					nodash += macstr[h].upper()
+
+				if (len(nodash) <= 17): nodash += '0'
+
+				d = nodash
+
+			elif t == dpkt.radius.RADIUS_NAS_ID:
+				d = replace_str(d)
+
+			elif t == 66:
+				d = replace_ip(d)
+			
+			attrlist[off] = [t, d]
+
+		for off, [t, d] in enumerate(attrlist):
+			len_d = len(d) + 2
+			preamble = 0
+			data = 0
+			#print(f"Type: {t}, Length: {len_d}, Data: {d}")
+
+			preamble = hex(int(t))[2:].zfill(2) +\
+						hex(int(len_d))[2:].zfill(2)
+			
+			if type(d) == str:
+				data = bytes(d, 'utf-8')
+			
+			else:
+				data = d
+
+			data = binascii.unhexlify(preamble) + data
+
+			pkt.data += data
+
 	return pkt
 
 # Mappings file, takes the replacement dictionaries "ip_repl" and "mac_repl" and writes them to a file for easy mapping reference
@@ -380,6 +479,7 @@ for timestamp, buf in pcap:
 		
 		# Replace MAC addresses if not flagged
 		if("-pm" not in opflags and "--preserve-macs" not in opflags):
+			print(eth.src)
 			eth.src = replace_mac(eth.src)
 			eth.dst = replace_mac(eth.dst)
 
@@ -444,10 +544,35 @@ for timestamp, buf in pcap:
 				if (len(arp.tha.hex()) <= 12):
 					arp.tpa = replace_ip(arp.tpa)
 				else:
-					arp.tpa = replace_ip6(arp.tpa)
+					arp.tpa = replace_ip6(arp.tpa)			
 
 		else:
-			print("Packet at timestamp: {} is of non IP Packet type, therefore unsupported (as of right now)\ndata: {}".format(datetime.datetime.utcfromtimestamp(timestamp), eth.data.unpack()))
+			try:
+				eth = dpkt.ip.IP(buf)
+				ip = eth
+				if("-pi" not in opflags and "--preserve-ips" not in opflags):
+					if (len(ip.src.hex()) == 8):
+						ip.src = replace_ip(ip.src)
+					else:
+						ip.src = replace_ip6(ip.src)
+					if (len(ip.dst.hex()) == 8):
+						ip.dst = replace_ip(ip.dst)
+					else:
+						ip.dst = replace_ip6(ip.dst)
+				
+				# TCP instance, preserve flags - possibly overwrite payload
+				if (isinstance(ip.data, dpkt.tcp.TCP) and ip.p == 6):
+					if ('-sp' in opflags or '--scrub-payload' in opflags):
+						tcp = ip.data
+						tcp.data = scrub_upper_prots(tcp.data, tcp.sport, tcp.dport)
+
+				# UDP instance, possibly overwrite payload
+				if (isinstance(ip.data, dpkt.udp.UDP) and ip.p == 17):
+					if ('-sp' in opflags or '--scrub-payload' in opflags):
+						udp = ip.data
+						udp.data = scrub_upper_prots(udp.data, udp.sport, udp.dport)
+			except:
+				print("Packet at timestamp: {} is of non IP Packet type, therefore unsupported (as of right now)".format(datetime.datetime.utcfromtimestamp(timestamp)))
 
 		# Write the modified (or unmodified, if not valid) packet
 		pcap_mod.writepkt(eth, ts=timestamp)

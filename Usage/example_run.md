@@ -49,35 +49,29 @@ Packet No 16:
 
 Output Files: local_traffic_mod_spip.pcap and local_traffic_mpdaddr_spip.txt.
 
-Same original file, now we're scrambling private IP addresses. You can't tell subnet masks via pcaps, so it is an unintellegent scramble. ~~At some point it'll choose an address within the same (assumed) /16 or /24 subnet, but for now it scrambles it the same way it would a routable address.~~** Now assumes /16 and scrambles the lower 2 bytes.
+Same original file, now we're scrambling private IP addresses. You can't tell subnet masks via pcaps, so it is an unintellegent scramble. It assumes /16 and scrambles the lower 2 bytes.
 
 Notes on the packets:
 
 You can now see that the 10.x addresses are now scrambled, and the mpdaddr file has grown accordingly.
 ***
-## simple_HTTP.pcap
+## radius-2.pcap
 
-`python pcapsrb.py simple_HTTP.pcap -sp`
+RADIUS and DHCP are protocols that nest a few attribute value pairs within the packets. These lists are dynamically sized. The DPKT module actually separates out these lists from the packet and allows us to perform operations on the values based on the codes associated with them (note: only codes that have potentially information-exposing values will be scrubbed). I've chosen RADIUS to demonstrate this process.
 
-Output Files: simple_HTTP_mod.pcap and simple_HTTP_mpdaddr.txt
+The command run to generate the scrubbed radius_2_mod.pcap is the following:
 
-The way to scrub an entire payload is with the -sp option. It randomly masks every bit past the TCP/UDP header portion of a packet. It's planned for (the most) sensitive protocols to be identified and scrubbed a little more intelligently.
+`python pcapsrb.py radius_pcap -sPIP -sp`
 
-Notes on the following packets:
+If you look at the Attribute Value Pairs section of the first packet, you can compare the t=NAS-IP-Address(4) l=6 val=**10.0.207.116** to the source IP of the packet. Additionally under t=User-Name(1) you should see a string of random characters, which is how the program replaces usernames. Now look at t=EAP-Message(79): you should see the same string of random characters. In AVP types 18 and 79, it will find usernames and replace just the username.
 
-Packet No. 4:
+Additionally, if you check t=30/31 (Calling/Called-Station-ID), you'll see replaced MAC addresses in the same format as the normal packet (xx-xx-xx-xx-xx-xx).
 
-Looks at how the -sp option bombs the HTTP GET request. Any >Layer 4 protocol will be overwritten. The overwriting starts at the 'TCP payload' section of the packet, preserving any src/dst ports for troubleshooting problems. 
+Onto packet 2, if you check the AVP t=18, you'll see "Hello, %u". This isn't a replacement, since the '%u' was not seen as part of a username AVP. t=79 is left untouched since there is no username included in the body of the value.
 
-Packet No. 13:
+In packet 3, you'll see the same username and Called/Calling-Station-Id MAC addresses from packet 1.
 
-Here we can see the -sp option in action with a UDP packet. Wireshark even flags it as a malformed packet. There is no checksum recalculation or identification of most protocols past TCP/UDP.
-
-Packet No. 36 & 37:
-
-As the TCP/UDP header info is kept, certain packets like these spurious retransmission/duplicate ACK packets can still be identified by Wireshark expert analysis.
-
-The -sp option should be used sparingly at this time, as it will most likely mask important troubleshooting data.
+As always, you can view the mapped addresses in the _mpdaddr.txt file
 ***
 ## arp-storm.pcap
 
@@ -91,8 +85,7 @@ Notes on packets:
 
 Notice again how broadcast traffic is not masked. The sender MAC address in the ARP packet and the src MAC in the ethernet frame are consistent as well.
 ***
-
-Final notes on the program:
+## Final notes on the program:
 
 During runtime, the program outputs this:
 

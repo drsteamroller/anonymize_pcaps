@@ -110,7 +110,7 @@ def replace_mac(mac):
 	# Account for broadcast/zero'd addresses
 	if (mac.hex() == 'f'*12 or mac.hex() == '0'*12):
 		return mac
-
+	
 	if (mac.hex() not in mac_repl.keys()):
 		repl = ""
 		for g in range(12):
@@ -292,40 +292,49 @@ def scrub_upper_prots(pkt, sport, dport):
 				d = replace_ip(d)
 			
 			elif t == dpkt.radius.RADIUS_FRAMED_IP_ADDR:
-				d = replace_ip(d)
+				if (b'.' in d and r'[0-9]' in d):
+					d = replace_ip(d)
 			
-			elif t == dpkt.radius.RADIUS_REPLY_MESSAGE:
-				d = replace_str(d)
+			elif t == dpkt.radius.RADIUS_REPLY_MESSAGE or t == 79:
+				for st in str_repl.keys():
+					if st in d:
+						d = d.replace(st, bytes(replace_str(st), 'utf-8'))
 			
 			elif t == dpkt.radius.RADIUS_CALLED_STATION_ID or t == dpkt.radius.RADIUS_CALLING_STATION_ID:
-				macstr = ""
-				nodash = ""
-				for i in d:
-					macstr += chr(i)
-				
-				# Get rid of dashes
-				for i in range(len(macstr)):
-					if ((i-2) % 3 != 0):
-						nodash += macstr[i]
-				
-				b = replace_mac(bytes(nodash, 'utf-8'))
+				if (b'-' in d):
+					macstr = ""
+					nodash = ""
+					for i in d:
+						macstr += chr(i)
+					
+					# Get rid of dashes
+					for i in range(len(macstr)):
+						if ((i-2) % 3 != 0):
+							nodash += macstr[i]
 
-				macstr = ""
-				nodash = ""
-				for i in b:
-					macstr += hex(i)[2:]
+					nodash = binascii.unhexlify(nodash)	
 
-				stupid = -2
-				# Get rid of dashes
-				for h in range(len(macstr)):
-					if ((h+stupid) % 3 == 0):
-						stupid +=1
-						nodash += "-"
-					nodash += macstr[h].upper()
+					b = replace_mac(nodash)
 
-				if (len(nodash) <= 17): nodash += '0'
+					macstr = ""
+					nodash = ""
+					for i in b:
+						macstr += hex(i)[2:]
 
-				d = nodash
+					stupid = -2
+					# Add dashes back
+					for h in range(len(macstr)):
+						if ((h+stupid) % 3 == 0):
+							stupid +=1
+							nodash += "-"
+						nodash += macstr[h].upper()
+
+					if (len(nodash) < 17): nodash += '0'
+					
+					d = nodash
+				else:
+					# IP address instead
+					pass
 
 			elif t == dpkt.radius.RADIUS_NAS_ID:
 				d = replace_str(d)
@@ -479,7 +488,6 @@ for timestamp, buf in pcap:
 		
 		# Replace MAC addresses if not flagged
 		if("-pm" not in opflags and "--preserve-macs" not in opflags):
-			print(eth.src)
 			eth.src = replace_mac(eth.src)
 			eth.dst = replace_mac(eth.dst)
 
@@ -581,7 +589,7 @@ for timestamp, buf in pcap:
 		print(".", end='')
 
 	except Exception as e:
-		print(f"Exception thrown at timestamp {timestamp}: {e}")
+		print(f"Exception thrown at timestamp {datetime.datetime.utcfromtimestamp(timestamp)}: {e}")
 		pcap_mod.writepkt(eth, ts=timestamp)
 
 print()

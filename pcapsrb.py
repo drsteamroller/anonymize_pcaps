@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-################################################################################
+#############################################################################################
 #                 PCAP sanitization for Federal customers
 # Usage:
 #		pcapsrb.py [file].pcap [options]
@@ -14,7 +14,7 @@
 #
 # Author: Andrew McConnell
 # Date:   03/09/2023
-################################################################################
+#############################################################################################
 
 import sys
 import dpkt
@@ -33,7 +33,7 @@ opflags = []
 mapfilename = ""
 
 #############################################################################################
-#									 Helper Functions										#
+#                                    Helper Functions                                       #
 #############################################################################################
 
 def isRFC1918(ip):
@@ -410,10 +410,13 @@ def repl_dicts_to_logfile(filename):
 			formatOG = formatOG[:-1]
 			formatREP = formatREP[:-1]
 			outfile.write(f"Original MAC: {formatOG}\nMapped MAC: {formatREP}\n\n")
+		outfile.write("+---------- MAPPED STRING VALUES ---------+\n")
+		for og, rep in str_repl.items():
+			outfile.write(f"Original String: {str(og)[2:-1]}\nMapped String: {rep}\n\n")
 	print(f"Mapped address outfile written to: {filename}")
 
 #############################################################################################
-#										CLI ARGS Setup										#
+#                                       CLI ARGS Setup                                      #
 #############################################################################################
 
 # Include private IP scramble
@@ -497,7 +500,7 @@ f_mod = open(modfilename, 'wb')
 pcap_mod = dpkt.pcap.Writer(f_mod)
 
 #############################################################################################
-#								 Enter PCAP Scrubbing										#
+#                                  Enter PCAP Scrubbing                                     #
 #############################################################################################
 
 print("Entering pcap", end='')

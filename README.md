@@ -34,4 +34,18 @@ Options:
         - Additionally, you can utilize this option if you want to scrub certain protocols, but leave other protocols untouched. Set the ports (see ports.txt) you want to not scrub to -1 
 ```
 
-***New/updated examples to be added soon***
+## Map File
+
+All FFI obfuscation programs (currently: pcapsrb, fortiobfuscator, and logscrub) output a map file containing mapped ipv4, ipv6, mac addresses, and strings (hostnames, usernames, etc). They exist to represent a human-readable mapping of the replacements made during the program's runtime.
+
+One other use for these files is to be able to import them into each program to receive the same replacement for the same original value.
+
+I.E ===>
+
+logscrub.py is run, masking every instance of the value 10.0.0.1 to 10.0.14.102. The mapped values file is taken and imported for pcapsrb.py's run. pcapsrb.py will replace every instance 10.0.0.1 with 10.0.14.102, the same as logscrub.py
+
+Currently, importing is being developed, but logscrub and FortiObfuscator have small implementations built in that provide this same functionality.
+
+- FortiObfuscate.py allows for multiple configuration files to be read in, and it keeps the same value map during the runtime (as long as it is not quit out between loading configuration files)
+
+- logscrub.py can take in multiple log files to perform the same replacements on the same original values

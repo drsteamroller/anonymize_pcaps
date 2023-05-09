@@ -292,7 +292,7 @@ def scrub_upper_prots(pkt, sport, dport):
 				d = replace_ip(d)
 			
 			elif t == dpkt.radius.RADIUS_FRAMED_IP_ADDR:
-				if (b'.' in d and r'[0-9]' in d):
+				if (b'.' in d):
 					d = replace_ip(d)
 			
 			elif t == dpkt.radius.RADIUS_REPLY_MESSAGE or t == 79:
@@ -333,8 +333,29 @@ def scrub_upper_prots(pkt, sport, dport):
 					
 					d = nodash
 				else:
-					# IP address instead
-					pass
+					# It's going to look like b'192.168.0.1'
+					b = b'192.168.0.1'
+					d = str(d)[2:-1]
+
+					octets = d.split('.')
+					hexrep = ""
+					for o in octets:
+						h = hex(int(o))[2:]
+						if (len(h) < 2):
+							hexrep += '0' + h
+						else:
+							hexrep += h
+					
+					# replace, but also convert back to a hex string so we can properly swap back to a byte string
+					replaced = str(binascii.hexlify(replace_ip(binascii.unhexlify(hexrep))))[2:-1]
+
+					r = ""
+					for w in range(0, len(replaced), 2):
+						r += str(int(replaced[w]+replaced[w+1], 16)) + '.'
+					
+					r = r[:-1]
+
+					d = r
 
 			elif t == dpkt.radius.RADIUS_NAS_ID:
 				d = replace_str(d)

@@ -415,6 +415,67 @@ def repl_dicts_to_logfile(filename):
 			outfile.write(f"Original String: {str(og)[2:-1]}\nMapped String: {rep}\n\n")
 	print(f"Mapped address outfile written to: {filename}")
 
+def importMap(filename):
+	lines = []
+	with open(filename, 'r') as o:
+		lines = o.readlines()
+	
+	print(lines)
+
+	imp_ip = False
+	imp_mac = False
+	imp_str = False
+
+	OG = ""
+	for l in lines:
+		if '+---' in l:
+			if 'IP' in l:
+				imp_ip = True
+				imp_mac = False
+				imp_str = False
+			elif 'MAC' in l:
+				imp_ip = False
+				imp_mac = True
+				imp_str = False
+			elif 'STRING' in l:
+				imp_ip = False
+				imp_mac = False
+				imp_str = True
+			else:
+				print("Map file is improperly formatted, do not make changes to the map file unless you know what you are doing")
+				sys.exit(1)
+			continue
+
+		if not len(l):
+			continue
+
+		if imp_ip:
+			components = l.split(':')
+			if ('Original' in components[0]):
+				OG = components[1]
+			else:
+				ip_repl[OG] = components[1]
+				OG = ""
+		elif imp_mac:
+			components = l.split(':')
+			if ('Original' in components[0]):
+				OG = components[1]
+			else:
+				mac_repl[OG] = components[1]
+				OG = ""
+		elif imp_str:
+			components = l.split(':')
+			if ('Original' in components[0]):
+				OG = components[1]
+			else:
+				str_repl[OG] = components[1]
+				OG = ""
+		
+		else:
+			print("Something went wrong, mappings might not be fully imported\n")
+			print(f"Interpreted mappings based on import\nIP Mapping: {ip_repl}\nMAC Mapping: {mac_repl}\nString Mapping: {str_repl}\n")
+		
+
 #############################################################################################
 #                                       CLI ARGS Setup                                      #
 #############################################################################################
@@ -425,7 +486,8 @@ options = {"-pi, --preserve-ips":"Program scrambles routable IP(v4&6) addresses 
 			"-sPIP, --scramble-priv-ips":"Scramble private/non-routable IP addresses",\
 			"-O=<OUTFILE>":"Output file name for log file, which shows the ip/mac address mappings",\
 			"-sp, --scrub-payload":"Sanitize payload in packet (DHCP/TFTP supported, HTTP under construction)",\
-			"-ns":"Non-standard ports used. By default pcapsrb.py assumes standard port usage, use this option if the pcap to be scrubbed uses non-standard ports. For more info on usage, run \'python pcapsrb.py -ns -h\'"}
+			"-ns":"Non-standard ports used. By default pcapsrb.py assumes standard port usage, use this option if the pcap to be scrubbed uses non-standard ports. For more info on usage, run \'python pcapsrb.py -ns -h\'",\
+			"-map=<MAPFILE>":"Take a map file output from any FFI program and input it into this program to utilize the same replacements"}
 
 # Check if file is included
 if (len(sys.argv) < 2):
@@ -471,8 +533,7 @@ for arg in args[2:]:
 			with open(ports, 'r') as pfile:
 				mappings = pfile.readlines()
 		except:
-			print(f"\n** Specified non-standard ports file ({ports}) not present, using default ports **\n")
-		
+			print(f"\n** Specified non-standard ports file ({ports}) not present, using default ports **\n")	
 		for entry in mappings:
 			print(entry)
 			try:
@@ -484,6 +545,16 @@ for arg in args[2:]:
 					protocol_ports[prot_port[0].lower()] = [prot_port[1]]
 			except:
 				print("Non-standard ports file not formatted correctly\nCorrect format:\n\n<Protocol1>:<port>\n<Protocol2>:<port>\n...\nSee ports.txt for more examples")
+	if ("map=" in arg):
+		try:
+			fn = arg.split('=')[1]
+			importMap(fn)
+		except FileNotFoundError as e:
+			print(f"Could not find file/path specified: '{fn}'")
+		except IndexError:
+			print("-map option needs to be formatted like so:\n\t-map=<filename>")
+		except:
+			print("Something went wrong when importing mapfile (-map=<file> option)")
 	opflags.append(arg)
 
 # Open the existing PCAP in a dpkt Reader

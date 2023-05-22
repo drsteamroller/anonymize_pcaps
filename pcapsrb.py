@@ -415,6 +415,23 @@ def repl_dicts_to_logfile(filename):
 			outfile.write(f"Original String: {str(og)[2:-1]}\nMapped String: {rep}\n\n")
 	print(f"Mapped address outfile written to: {filename}")
 
+def toBin(data, mode):
+	b = ''
+	if mode == 'ip':
+		octets = data.split('.')
+		for h in octets:
+			i = hex(int(h))[2:]
+			b += i
+		
+		if len(b) < 6:
+			b = '0'*(6-len(b)) + b
+	elif mode == 'mac':
+		b = ''.join(data.split(':'))
+	else:
+		print("Something went wrong with the actual map data\nCan't interpret: {data}")
+
+	return b
+
 def importMap(filename):
 	lines = []
 	with open(filename, 'r') as o:
@@ -452,23 +469,24 @@ def importMap(filename):
 		if imp_ip:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1]
+				OG = components[1].strip()
+				OG = toBin(OG, 'ip')
 			else:
-				ip_repl[OG] = components[1]
+				ip_repl[OG] = components[1].strip()
 				OG = ""
 		elif imp_mac:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1]
+				OG = components[1].strip()
 			else:
-				mac_repl[OG] = components[1]
+				mac_repl[OG] = components[1].strip()
 				OG = ""
 		elif imp_str:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1]
+				OG = components[1].strip()
 			else:
-				str_repl[OG] = components[1]
+				str_repl[OG] = components[1].strip()
 				OG = ""
 		
 		else:

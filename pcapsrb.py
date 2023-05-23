@@ -278,15 +278,16 @@ def scrub_upper_prots(pkt, sport, dport):
 	elif (sport in protocol_ports['radius'] or dport in protocol_ports['radius']):
 		pkt = dpkt.radius.RADIUS(pkt)
 
+		total_len = 20
 		# Convert the tuples into a list so we can manipulate values
 		attrlist = []
 		for t, d in pkt.attrs:
 			attrlist.append([t,d])
 
 		for off, [t, d] in enumerate(attrlist):
-
+			print(f"Before: {d}")
 			if t == dpkt.radius.RADIUS_USER_NAME:
-				d = replace_str(d)
+				d = bytes(replace_str(d), 'utf-8')
 			
 			elif t == dpkt.radius.RADIUS_NAS_IP_ADDR:
 				d = replace_ip(d)
@@ -333,9 +334,8 @@ def scrub_upper_prots(pkt, sport, dport):
 					
 					d = nodash
 				else:
-					# It's going to look like b'192.168.0.1'
-					b = b'192.168.0.1'
-					d = str(b)[2:-1]
+
+					d = str(d)[2:-1]
 
 					octets = d.split('.')
 					hexrep = ""
@@ -348,25 +348,54 @@ def scrub_upper_prots(pkt, sport, dport):
 					
 					# replace, but also convert back to a hex string so we can properly swap back to a byte string
 					replaced = str(binascii.hexlify(replace_ip(binascii.unhexlify(hexrep))))[2:-1]
-
+					
 					r = ""
 					for w in range(0, len(replaced), 2):
 						r += str(int(replaced[w]+replaced[w+1], 16)) + '.'
 					
 					r = r[:-1]
 
-					d = r
+					d = bytes(r, 'utf-8')
 
 			elif t == dpkt.radius.RADIUS_NAS_ID:
-				d = replace_str(d)
+				d = bytes(replace_str(d), 'utf-8')
+			
+			elif t == 44:
+				d_str = str(d)[2:-1]
+				for st in str_repl.keys():
+					if st in d_str:
+						d_str = d_str.replace(st, replace_str(st))
+				
+				d = bytes(d_str, 'utf-8')
 
 			elif t == 66:
-				d = replace_ip(d)
+				d = str(d)[2:-1]
+
+				octets = d.split('.')
+				hexrep = ""
+				for o in octets:
+					h = hex(int(o))[2:]
+					if (len(h) < 2):
+						hexrep += '0' + h
+					else:
+						hexrep += h
+				
+				# replace, but also convert back to a hex string so we can properly swap back to a byte string
+				replaced = str(binascii.hexlify(replace_ip(binascii.unhexlify(hexrep))))[2:-1]
+				
+				r = ""
+				for w in range(0, len(replaced), 2):
+					r += str(int(replaced[w]+replaced[w+1], 16)) + '.'
+				
+				r = r[:-1]
+
+				d = bytes(r, 'utf-8')
 			
 			attrlist[off] = [t, d]
 
 		for off, [t, d] in enumerate(attrlist):
 			len_d = len(d) + 2
+			total_len += len_d
 			preamble = 0
 			data = 0
 			#print(f"Type: {t}, Length: {len_d}, Data: {d}")
@@ -383,6 +412,8 @@ def scrub_upper_prots(pkt, sport, dport):
 			data = binascii.unhexlify(preamble) + data
 
 			pkt.data += data
+
+		pkt.len = total_len
 
 	return pkt
 
@@ -414,23 +445,6 @@ def repl_dicts_to_logfile(filename):
 		for og, rep in str_repl.items():
 			outfile.write(f"Original String: {str(og)[2:-1]}\nMapped String: {rep}\n\n")
 	print(f"Mapped address outfile written to: {filename}")
-
-def toBin(data, mode):
-	b = ''
-	if mode == 'ip':
-		octets = data.split('.')
-		for h in octets:
-			i = hex(int(h))[2:]
-			b += i
-		
-		if len(b) < 6:
-			b = '0'*(6-len(b)) + b
-	elif mode == 'mac':
-		b = ''.join(data.split(':'))
-	else:
-		print("Something went wrong with the actual map data\nCan't interpret: {data}")
-
-	return b
 
 def importMap(filename):
 	lines = []
@@ -469,24 +483,23 @@ def importMap(filename):
 		if imp_ip:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1].strip()
-				OG = toBin(OG, 'ip')
+				OG = components[1]
 			else:
-				ip_repl[OG] = components[1].strip()
+				ip_repl[OG] = components[1]
 				OG = ""
 		elif imp_mac:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1].strip()
+				OG = components[1]
 			else:
-				mac_repl[OG] = components[1].strip()
+				mac_repl[OG] = components[1]
 				OG = ""
 		elif imp_str:
 			components = l.split(':')
 			if ('Original' in components[0]):
-				OG = components[1].strip()
+				OG = components[1]
 			else:
-				str_repl[OG] = components[1].strip()
+				str_repl[OG] = components[1]
 				OG = ""
 		
 		else:

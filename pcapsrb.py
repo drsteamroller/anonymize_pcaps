@@ -335,7 +335,7 @@ def scrub_upper_prots(pkt, sport, dport):
 				else:
 					# It's going to look like b'192.168.0.1'
 					b = b'192.168.0.1'
-					d = str(d)[2:-1]
+					d = str(b)[2:-1]
 
 					octets = d.split('.')
 					hexrep = ""

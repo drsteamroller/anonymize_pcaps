@@ -363,8 +363,9 @@ def scrub_upper_prots(pkt, sport, dport):
 			elif t == 44:
 				d_str = str(d)[2:-1]
 				for st in str_repl.keys():
-					if st in d_str:
-						d_str = d_str.replace(st, replace_str(st))
+					st_s = str(st)[2:-1]
+					if st_s in d_str:
+						d_str = d_str.replace(st_s, replace_str(st))
 				
 				d = bytes(d_str, 'utf-8')
 
